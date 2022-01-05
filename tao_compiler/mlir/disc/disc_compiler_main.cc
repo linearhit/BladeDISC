@@ -30,10 +30,10 @@ limitations under the License.
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
-#include "mlir-hlo/Dialect/mhlo/IR/disc_ral_ops.h"
+#include "mlir-hlo/Dialect/disc-ral/IR/disc_ral_ops.h"
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
 #include "mlir-hlo/Dialect/mhlo/IR/lhlo_gpu_ops.h"
-#include "mlir-hlo/Dialect/mhlo/IR/lhlo_ops.h"
+#include "mlir-hlo/Dialect/lhlo/IR/lhlo_ops.h"
 #include "mlir-hlo/Dialect/mhlo/transforms/register_passes.h"
 #include "mlir/ExecutionEngine/OptUtils.h"  // from @llvm-project
 #include "mlir/IR/AsmState.h"

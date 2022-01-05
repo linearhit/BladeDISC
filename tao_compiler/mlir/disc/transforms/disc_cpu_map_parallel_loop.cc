@@ -17,8 +17,8 @@ limitations under the License.
 // on the cpu device.
 
 #include "llvm/Support/Debug.h"
-#include "mlir-hlo/Dialect/mhlo/IR/disc_ral_ops.h"
-#include "mlir-hlo/Dialect/mhlo/IR/lhlo_ops.h"
+#include "mlir-hlo/Dialect/disc-ral/IR/disc_ral_ops.h"
+#include "mlir-hlo/Dialect/lhlo/IR/lhlo_ops.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -44,13 +44,13 @@ const int64_t kVectorizationSize = 16;
 
 bool isSmallParallelOp(scf::ParallelOp op) {
   int64_t numElems = 1;
-  for (auto&& en : llvm::zip(op.lowerBound(), op.upperBound(), op.step())) {
+  for (auto&& en : llvm::zip(op.getLowerBound(), op.getUpperBound(), op.getStep())) {
     auto lowerOp =
-        dyn_cast_or_null<ConstantIndexOp>(std::get<0>(en).getDefiningOp());
+        dyn_cast_or_null<arith::ConstantIndexOp>(std::get<0>(en).getDefiningOp());
     auto upperOp =
-        dyn_cast_or_null<ConstantIndexOp>(std::get<1>(en).getDefiningOp());
+        dyn_cast_or_null<arith::ConstantIndexOp>(std::get<1>(en).getDefiningOp());
     auto stepOp =
-        dyn_cast_or_null<ConstantIndexOp>(std::get<2>(en).getDefiningOp());
+        dyn_cast_or_null<arith::ConstantIndexOp>(std::get<2>(en).getDefiningOp());
     if (!lowerOp || !upperOp || !stepOp) return false;
     numElems *=
         ((upperOp.getValue() - lowerOp.getValue() + stepOp.getValue() - 1) /
@@ -61,10 +61,10 @@ bool isSmallParallelOp(scf::ParallelOp op) {
 
 bool isSmallForOp(scf::ForOp op) {
   auto lowerOp =
-      dyn_cast_or_null<ConstantIndexOp>(op.lowerBound().getDefiningOp());
+      dyn_cast_or_null<arith::ConstantIndexOp>(op.getLowerBound().getDefiningOp());
   auto upperOp =
-      dyn_cast_or_null<ConstantIndexOp>(op.upperBound().getDefiningOp());
-  auto stepOp = dyn_cast_or_null<ConstantIndexOp>(op.step().getDefiningOp());
+      dyn_cast_or_null<arith::ConstantIndexOp>(op.getUpperBound().getDefiningOp());
+  auto stepOp = dyn_cast_or_null<arith::ConstantIndexOp>(op.getStep().getDefiningOp());
   if (!lowerOp || !upperOp || !stepOp) return false;
   int numIterations =
       ((upperOp.getValue() - lowerOp.getValue() + stepOp.getValue() - 1) /
@@ -97,18 +97,18 @@ bool ParallelOpContainsSubLoops(scf::ParallelOp op) {
 }
 
 LogicalResult splitInnerMostParallelDim(OpBuilder& b, scf::ParallelOp op) {
-  int numIVs = op.lowerBound().size();
+  int numIVs = op.getLowerBound().size();
   assert(numIVs > 1);
   auto outter = b.create<scf::ParallelOp>(
-      op.getLoc(), op.lowerBound().drop_back(), op.upperBound().drop_back(),
-      op.step().drop_back());
+      op.getLoc(), op.getLowerBound().drop_back(), op.getUpperBound().drop_back(),
+      op.getStep().drop_back());
   b.setInsertionPointToStart(outter.getBody());
   auto inner = b.create<scf::ParallelOp>(
-      op.getLoc(), op.lowerBound().drop_front(numIVs - 1),
-      op.upperBound().drop_front(numIVs - 1), op.step().drop_front(numIVs - 1));
+      op.getLoc(), op.getLowerBound().drop_front(numIVs - 1),
+      op.getUpperBound().drop_front(numIVs - 1), op.getStep().drop_front(numIVs - 1));
   b.setInsertionPointToStart(inner.getBody());
-  inner.region().takeBody(op.region());
-  Block* entry = &inner.region().front();
+  inner.getLoopBody().takeBody(op.getLoopBody());
+  Block* entry = &inner.getLoopBody().front();
   for (auto&& en :
        llvm::zip(outter.getInductionVars(), entry->getArguments())) {
     std::get<1>(en).replaceAllUsesWith(std::get<0>(en));

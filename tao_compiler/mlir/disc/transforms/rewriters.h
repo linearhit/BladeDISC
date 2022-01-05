@@ -21,6 +21,10 @@ namespace mlir {
 class LLVMTypeConverter;
 class SymbolTable;
 class RewritePatternSet;
+namespace bufferization {
+  class BufferizeTypeConverter;
+}
+class MLIRContext;
 
 namespace disc_ral {
 
@@ -29,13 +33,10 @@ void populateDiscToLLVMConversionPatterns(LLVMTypeConverter* converter,
                                           RewritePatternSet* patterns);
 }  // namespace disc_ral
 
-class MLIRContext;
-class BufferizeTypeConverter;
-
 namespace mhlo_disc {
 
 void populateDiscHLOToLHLOConversionPattern(MLIRContext* context,
-                                            BufferizeTypeConverter* converter,
+                                            bufferization::BufferizeTypeConverter* converter,
                                             RewritePatternSet* patterns);
 
 }  // namespace mhlo_disc

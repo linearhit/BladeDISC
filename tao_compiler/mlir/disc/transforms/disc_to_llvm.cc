@@ -15,7 +15,7 @@ limitations under the License.
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "mlir-hlo/Dialect/mhlo/IR/disc_ral_ops.h"
+#include "mlir-hlo/Dialect/disc-ral/IR/disc_ral_ops.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"    // from @llvm-project
 #include "mlir/Conversion/LLVMCommon/Pattern.h"         // from @llvm-project
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"      // from @llvm-project
@@ -151,7 +151,7 @@ Value loadGlobalString(OpBuilder& builder, const Location& loc,
 
 // Returns true if the globalOp has the same value as `value`.
 bool checkGlobalOpContent(GlobalOp globalOp, StringRef value) {
-  Optional<Attribute> optValue = globalOp.value();
+  Optional<Attribute> optValue = globalOp.getValue();
   if (!optValue) return false;
 
   StringAttr attr = (*optValue).cast<StringAttr>();

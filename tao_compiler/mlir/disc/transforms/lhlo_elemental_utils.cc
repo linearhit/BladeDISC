@@ -19,8 +19,9 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/disc/transforms/lhlo_elemental_utils.h"
 
 #include "llvm/Support/Debug.h"
-#include "mlir-hlo/Dialect/mhlo/IR/lhlo_ops.h"
-#include "mlir-hlo/Dialect/mhlo/transforms/map_lmhlo_to_scalar_op.h"
+#include "mlir-hlo/Dialect/lhlo/IR/lhlo_ops.h"
+#include "mlir-hlo/Dialect/lhlo/transforms/map_lmhlo_to_scalar_op.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -185,12 +186,12 @@ Value elementalLower<lmhlo::SliceOp>(OpBuilder* b, Location loc,
   SmallVector<Value> input_index;
   for (int dim = 0; dim < rank; ++dim) {
     // for each dim, output[..a..] = input[..a * a_stride + a_start..]
-    Value start_index = b->create<ConstantIndexOp>(
+    Value start_index = b->create<arith::ConstantIndexOp>(
         loc, op.start_indices().getValue<int64_t>(dim));
     Value stride =
-        b->create<ConstantIndexOp>(loc, op.strides().getValue<int64_t>(dim));
-    auto input_dim = b->create<AddIOp>(
-        loc, b->create<MulIOp>(loc, output_index[dim], stride), start_index);
+        b->create<arith::ConstantIndexOp>(loc, op.strides().getValue<int64_t>(dim));
+    auto input_dim = b->create<arith::AddIOp>(
+        loc, b->create<arith::MulIOp>(loc, output_index[dim], stride), start_index);
     input_index.push_back(input_dim);
   }
 
@@ -211,7 +212,7 @@ Value elementalLower<lmhlo::RealDynamicSliceOp>(OpBuilder* b, Location loc,
   SmallVector<Value, 4> input_index;
   for (int dim = 0; dim < rank; ++dim) {
     SmallVector<Value, 4> dim_index;
-    dim_index.push_back(b->create<ConstantIndexOp>(loc, dim));
+    dim_index.push_back(b->create<arith::ConstantIndexOp>(loc, dim));
     auto start_index_load =
         b->create<LoadOp>(loc, start_indices_memref, ValueRange{dim_index});
     auto start_index = mayConvertToIndexType(start_index_load, b, loc);
@@ -219,8 +220,8 @@ Value elementalLower<lmhlo::RealDynamicSliceOp>(OpBuilder* b, Location loc,
         b->create<LoadOp>(loc, strides_memref, ValueRange{dim_index});
     auto stride = mayConvertToIndexType(stride_load, b, loc);
     // input_dim = out_dim * stride + start_index
-    auto input_dim = b->create<AddIOp>(
-        loc, b->create<MulIOp>(loc, output_index[dim], stride), start_index);
+    auto input_dim = b->create<arith::AddIOp>(
+        loc, b->create<arith::MulIOp>(loc, output_index[dim], stride), start_index);
     input_index.push_back(input_dim);
   }
 
@@ -267,7 +268,7 @@ Value elementalLowerImplForBroadcastInDimOps(OpBuilder* b, Location loc,
         auto output_dim_size = b->create<DimOp>(loc, result_memref, dim);
         auto zero = b->create<ConstantOp>(
             loc, b->getIndexType(), b->getIntegerAttr(b->getIndexType(), 0));
-        auto dim_size_is_equal = b->create<CmpIOp>(loc, CmpIPredicate::eq,
+        auto dim_size_is_equal = b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                                    dim_size, output_dim_size);
         input_index.push_back(b->create<mlir::SelectOp>(
             loc, dim_size_is_equal, output_index[dim], zero));
@@ -392,12 +393,12 @@ Value elementalLower<lmhlo::NotOp>(OpBuilder* b, Location loc, lmhlo::NotOp op,
 
   Value falseValue;
   if (operand_ty.getElementType().isIndex()) {
-    falseValue = b->create<ConstantIndexOp>(loc, 0);
+    falseValue = b->create<arith::ConstantIndexOp>(loc, 0);
   } else {
-    falseValue = b->create<ConstantIntOp>(loc, 0, operand_ty.getElementType());
+    falseValue = b->create<arith::ConstantIntOp>(loc, 0, operand_ty.getElementType());
   }
 
-  return b->create<CmpIOp>(loc, CmpIPredicate::eq, operandValue, falseValue);
+  return b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, operandValue, falseValue);
 }
 
 template <>
@@ -437,13 +438,13 @@ Value elementalLower<lmhlo::ReverseOp>(OpBuilder* b, Location loc,
   auto axis = op.dimensions().getValues<int64_t>();
   int rank = output_index.size();
   SmallVector<Value> operand_index(rank);
-  Value one = b->create<ConstantIndexOp>(loc, 1);
+  Value one = b->create<arith::ConstantIndexOp>(loc, 1);
   auto input_shape = getShapeValues(b, operand_memref);
   for (int64_t dim = 0; dim < rank; ++dim) {
     auto it = std::find(axis.begin(), axis.end(), dim);
     if (it != axis.end()) {
-      auto shape_value = b->create<SubIOp>(loc, input_shape[dim], one);
-      auto output_dim = b->create<SubIOp>(loc, shape_value, output_index[dim]);
+      auto shape_value = b->create<arith::SubIOp>(loc, input_shape[dim], one);
+      auto output_dim = b->create<arith::SubIOp>(loc, shape_value, output_index[dim]);
       operand_index[dim] = output_dim;
     } else {
       operand_index[dim] = output_index[dim];
@@ -466,9 +467,9 @@ Value elementalLower<lmhlo::DynamicPadOp>(OpBuilder* b, Location loc,
   Value interior_padding_memref = *(op->getOperands().begin() + 4);
   int rank = output_index.size();
   SmallVector<Value, 4> input_index;
-  Value in_bound = b->create<ConstantIntOp>(loc, 1, 1);
-  Value one = b->create<ConstantIndexOp>(loc, 1);
-  Value zero = b->create<ConstantIndexOp>(loc, 0);
+  Value in_bound = b->create<arith::ConstantIntOp>(loc, 1, 1);
+  Value one = b->create<arith::ConstantIndexOp>(loc, 1);
+  Value zero = b->create<arith::ConstantIndexOp>(loc, 0);
   // for each dim i:
   //   x = output_dim[i] - edge_padding_low[i]
   //   y = x % (interior_padding[i] + 1)
@@ -479,25 +480,25 @@ Value elementalLower<lmhlo::DynamicPadOp>(OpBuilder* b, Location loc,
   //      (z < input_shape[i])
   for (int dim = 0; dim < rank; ++dim) {
     SmallVector<Value, 4> dim_const;
-    dim_const.push_back(b->create<ConstantIndexOp>(loc, dim));
+    dim_const.push_back(b->create<arith::ConstantIndexOp>(loc, dim));
     Value edge_padding_low =
         b->create<LoadOp>(loc, edge_padding_low_memref, dim_const);
     edge_padding_low = mayConvertToIndexType(edge_padding_low, b, loc);
     Value interior_padding =
         b->create<LoadOp>(loc, interior_padding_memref, dim_const);
     interior_padding = mayConvertToIndexType(interior_padding, b, loc);
-    auto x = b->create<SubIOp>(loc, output_index[dim], edge_padding_low);
-    auto interior_padding_p1 = b->create<AddIOp>(loc, interior_padding, one);
+    auto x = b->create<arith::SubIOp>(loc, output_index[dim], edge_padding_low);
+    auto interior_padding_p1 = b->create<arith::AddIOp>(loc, interior_padding, one);
     auto y = b->create<UnsignedRemIOp>(loc, x, interior_padding_p1);
-    auto z = b->create<UnsignedDivIOp>(loc, x, interior_padding_p1);
-    in_bound = b->create<mlir::AndOp>(
-        loc, in_bound, b->create<CmpIOp>(loc, CmpIPredicate::sge, x, zero));
-    in_bound = b->create<mlir::AndOp>(
-        loc, in_bound, b->create<CmpIOp>(loc, CmpIPredicate::eq, y, zero));
+    auto z = b->create<arith::DivUIOp>(loc, x, interior_padding_p1);
+    in_bound = b->create<arith::AndIOp>(
+        loc, in_bound, b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, x, zero));
+    in_bound = b->create<arith::AndIOp>(
+        loc, in_bound, b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, y, zero));
 
-    in_bound = b->create<mlir::AndOp>(
+    in_bound = b->create<arith::AndIOp>(
         loc, in_bound,
-        b->create<CmpIOp>(loc, CmpIPredicate::slt, z,
+        b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, z,
                           disc_ral::getDimSizeValue(b, operand_memref, dim)));
     input_index.push_back(z);
   }
@@ -512,9 +513,9 @@ Value elementalLower<lmhlo::DynamicPadOp>(OpBuilder* b, Location loc,
       operand_memref.getType().cast<MemRefType>().getElementType());
   auto if_inbound_op =
       b->create<scf::IfOp>(loc, result_types, in_bound, /*hasElseRegion*/ true);
-  if_inbound_op.thenRegion().front().clear();
-  if_inbound_op.elseRegion().front().clear();
-  b->setInsertionPointToEnd(&if_inbound_op.thenRegion().front());
+  if_inbound_op.getThenRegion().front().clear();
+  if_inbound_op.getElseRegion().front().clear();
+  b->setInsertionPointToEnd(&if_inbound_op.getThenRegion().front());
   auto ret_value =
       check_cache
           ? createLoadOrUseCachedValue(loc, b, operand_memref, input_index,
@@ -522,7 +523,7 @@ Value elementalLower<lmhlo::DynamicPadOp>(OpBuilder* b, Location loc,
           : b->create<LoadOp>(loc, operand_memref, input_index);
   b->create<scf::YieldOp>(loc, ret_value);
 
-  b->setInsertionPointToEnd(&if_inbound_op.elseRegion().front());
+  b->setInsertionPointToEnd(&if_inbound_op.getElseRegion().front());
   Value padded_value =
       b->create<LoadOp>(loc, padding_value_memref, ValueRange());
   b->create<scf::YieldOp>(loc, padded_value);
@@ -569,7 +570,7 @@ Value lowerGatherOpInternal(OpBuilder* b, Location loc, Operation* op,
         (std::find(collapsed_slice_dims.begin(), collapsed_slice_dims.end(),
                    i) != collapsed_slice_dims.end());
     if (is_collapsed_dim) {
-      operand_index.push_back(b->create<ConstantIndexOp>(loc, 0));
+      operand_index.push_back(b->create<arith::ConstantIndexOp>(loc, 0));
     } else {
       int64_t output_window_dim = offset_dims[operand_index_dim++];
       operand_to_output_dim[i] = output_window_dim;
@@ -597,26 +598,26 @@ Value lowerGatherOpInternal(OpBuilder* b, Location loc, Operation* op,
     int64_t output_dim = operand_to_output_dim[operand_dim];
     Value output_dim_size = nullptr;
     if (output_dim == -1) {
-      output_dim_size = b->create<ConstantIndexOp>(loc, 1);
+      output_dim_size = b->create<arith::ConstantIndexOp>(loc, 1);
     } else {
       output_dim_size = b->create<DimOp>(loc, result, output_dim);
     }
-    Value largest_valid_start_index = b->create<IndexCastOp>(
+    Value largest_valid_start_index = b->create<arith::IndexCastOp>(
         loc, index_component.getType(),
-        b->create<SubIOp>(loc, b->create<DimOp>(loc, operand, operand_dim),
+        b->create<arith::SubIOp>(loc, b->create<DimOp>(loc, operand, operand_dim),
                           output_dim_size));
-    auto zero = b->create<ConstantIntOp>(
+    auto zero = b->create<arith::ConstantIntOp>(
         loc, 0, index_component.getType().cast<IntegerType>().getWidth());
     auto max_with_zero = b->create<mlir::SelectOp>(
-        loc, b->create<CmpIOp>(loc, CmpIPredicate::sge, zero, index_component),
+        loc, b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, zero, index_component),
         zero, index_component);
     auto gather_dim_component_extended_inbound = b->create<mlir::SelectOp>(
         loc,
-        b->create<CmpIOp>(loc, CmpIPredicate::slt, max_with_zero,
+        b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, max_with_zero,
                           largest_valid_start_index),
         max_with_zero, largest_valid_start_index);
 
-    operand_index[operand_dim] = b->create<AddIOp>(
+    operand_index[operand_dim] = b->create<arith::AddIOp>(
         loc, operand_index[operand_dim],
         mayConvertToIndexType(gather_dim_component_extended_inbound, b, loc));
   };
@@ -634,7 +635,7 @@ Value lowerGatherOpInternal(OpBuilder* b, Location loc, Operation* op,
     assert((index_vector_size != ShapedType::kDynamicSize) &&
            "dynamic index_vector_dim size for GatherOp is unexpected");
     for (int64_t i = 0; i < index_vector_size; ++i) {
-      gather_index_index[index_vector_dim] = b->create<ConstantIndexOp>(loc, i);
+      gather_index_index[index_vector_dim] = b->create<arith::ConstantIndexOp>(loc, i);
       Value gather_dim_component =
           check_cache
               ? createLoadOrUseCachedValue(loc, b, start_indices,
@@ -675,13 +676,13 @@ Value elementalLower<lmhlo::ConcatenateOp>(OpBuilder* b, Location loc,
   size_t rank = output_index.size();
 
   auto num_input_operands = op.getNumOperands() - 1;
-  auto zero = b->create<ConstantIndexOp>(loc, 0);
+  auto zero = b->create<arith::ConstantIndexOp>(loc, 0);
 
   SmallVector<Value> axis_dim_ranges;
   axis_dim_ranges.push_back(zero);
   for (int i = 0; i < num_input_operands; ++i) {
     axis_dim_ranges.push_back(
-        b->create<AddIOp>(loc, getDimSizeValue(b, op.getOperand(i), axis),
+        b->create<arith::AddIOp>(loc, getDimSizeValue(b, op.getOperand(i), axis),
                           axis_dim_ranges.back()));
   }
 
@@ -749,17 +750,17 @@ Value elementalLower<lmhlo::ConcatenateOp>(OpBuilder* b, Location loc,
     auto low_bound = axis_dim_ranges[i];
     auto up_bound = axis_dim_ranges[i + 1];
     auto gt_low_bound =
-        b->create<CmpIOp>(loc, CmpIPredicate::uge, out_idx, low_bound);
+        b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::uge, out_idx, low_bound);
     auto lt_up_bound =
-        b->create<CmpIOp>(loc, CmpIPredicate::ult, out_idx, up_bound);
-    auto in_bound = b->create<AndOp>(loc, gt_low_bound, lt_up_bound);
+        b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::ult, out_idx, up_bound);
+    auto in_bound = b->create<arith::AndIOp>(loc, gt_low_bound, lt_up_bound);
     if_inbound_ops[i] = b->create<scf::IfOp>(loc, if_result_types, in_bound,
                                              /*withElseRegion*/ true);
-    if_inbound_ops[i].thenRegion().front().clear();
-    if_inbound_ops[i].elseRegion().front().clear();
+    if_inbound_ops[i].getThenRegion().front().clear();
+    if_inbound_ops[i].getElseRegion().front().clear();
 
-    b->setInsertionPointToEnd(&if_inbound_ops[i].thenRegion().front());
-    input_index[axis] = b->create<SubIOp>(loc, out_idx, low_bound);
+    b->setInsertionPointToEnd(&if_inbound_ops[i].getThenRegion().front());
+    input_index[axis] = b->create<arith::SubIOp>(loc, out_idx, low_bound);
     auto operand_memref = op.getOperand(i);
     auto ret_value =
         check_cache
@@ -768,7 +769,7 @@ Value elementalLower<lmhlo::ConcatenateOp>(OpBuilder* b, Location loc,
             : b->create<LoadOp>(loc, operand_memref, input_index);
     b->create<scf::YieldOp>(loc, ret_value);
 
-    b->setInsertionPointToEnd(&if_inbound_ops[i].elseRegion().front());
+    b->setInsertionPointToEnd(&if_inbound_ops[i].getElseRegion().front());
     if (i == num_input_operands - 1) {
       b->create<scf::YieldOp>(loc, zero_element);  // expect never used
     } else {
@@ -829,7 +830,7 @@ Value elementalLowerIota(OpBuilder* b, const Location& loc, Operation* op,
   Value result = nullptr;
   if (result_element_ty.dyn_cast<IntegerType>()) {
     result =
-        b->create<mlir::IndexCastOp>(loc, elem_index_linear, result_element_ty);
+        b->create<arith::IndexCastOp>(loc, elem_index_linear, result_element_ty);
   } else if (result_element_ty.dyn_cast<IndexType>()) {
     result = mayConvertToIndexType(elem_index_linear, b, loc);
   } else if (result_element_ty.dyn_cast<FloatType>()) {
@@ -872,15 +873,15 @@ Value elementalLower<lmhlo::ReduceOp>(OpBuilder* b, Location loc,
   auto dimensions = op.dimensions().getValues<int64_t>();
   auto input_rank = operand_memref.getType().cast<MemRefType>().getRank();
   // total elems to reduce
-  Value acc_mul = b->create<ConstantIndexOp>(loc, 1);
+  Value acc_mul = b->create<arith::ConstantIndexOp>(loc, 1);
   SmallVector<Value, 4> reduction_size_vec;
   for (auto dim : dimensions) {
     auto dim_size = b->create<DimOp>(loc, operand_memref, dim);
     reduction_size_vec.push_back(dim_size);
-    acc_mul = b->create<MulIOp>(loc, acc_mul, dim_size);
+    acc_mul = b->create<arith::MulIOp>(loc, acc_mul, dim_size);
   }
-  auto zero = b->create<ConstantIndexOp>(loc, 0);
-  auto one = b->create<ConstantIndexOp>(loc, 1);
+  auto zero = b->create<arith::ConstantIndexOp>(loc, 0);
+  auto one = b->create<arith::ConstantIndexOp>(loc, 1);
   auto forOp = b->create<scf::ForOp>(loc, zero, acc_mul, one,
                                      ArrayRef<Value>({init_value}));
   forOp.getBody()->clear();
@@ -1042,7 +1043,7 @@ LoadOp createOffsetLoad(OpBuilder& b, Location loc, Value memref,
 }
 
 // TODO: check the definition of "SignlessInteger"
-AtomicRMWKind getAtomicRMWKind(Region& body) {
+arith::AtomicRMWKind getAtomicRMWKind(Region& body) {
   auto calc_op = getReduceOperator(body);
   auto num_operands = calc_op->getNumOperands();
   auto result_type = calc_op->getOperand(num_operands - 1).getType();
@@ -1050,46 +1051,46 @@ AtomicRMWKind getAtomicRMWKind(Region& body) {
   if (isa<lmhlo::AddOp>(calc_op)) {
     if (result_elem_type.isF16() || result_elem_type.isF32() ||
         result_elem_type.isF64()) {
-      return AtomicRMWKind::addf;
+      return arith::AtomicRMWKind::addf;
     } else if (result_elem_type.isSignlessInteger() ||
                result_elem_type.isSignedInteger() ||
                result_elem_type.isUnsignedInteger()) {
-      return AtomicRMWKind::addi;
+      return arith::AtomicRMWKind::addi;
     } else {
       assert(false && "unexpected atomic reduce operation");
     }
   } else if (isa<lmhlo::MulOp>(calc_op)) {
     if (result_elem_type.isF16() || result_elem_type.isF32() ||
         result_elem_type.isF64()) {
-      return AtomicRMWKind::mulf;
+      return arith::AtomicRMWKind::mulf;
     } else if (result_elem_type.isSignlessInteger() ||
                result_elem_type.isSignedInteger() ||
                result_elem_type.isUnsignedInteger()) {
-      return AtomicRMWKind::muli;
+      return arith::AtomicRMWKind::muli;
     } else {
       assert(false && "unexpected atomic reduce operation");
     }
   } else if (isa<lmhlo::MaxOp>(calc_op)) {
     if (result_elem_type.isF16() || result_elem_type.isF32() ||
         result_elem_type.isF64()) {
-      return AtomicRMWKind::maxf;
+      return arith::AtomicRMWKind::maxf;
     } else if (result_elem_type.isSignedInteger()) {
-      return AtomicRMWKind::maxs;
+      return arith::AtomicRMWKind::maxs;
     } else if (result_elem_type.isUnsignedInteger() ||
                result_elem_type.isSignlessInteger()) {
-      return AtomicRMWKind::maxu;
+      return arith::AtomicRMWKind::maxu;
     } else {
       assert(false && "unexpected atomic reduce operation");
     }
   } else if (isa<lmhlo::MinOp>(calc_op)) {
     if (result_elem_type.isF16() || result_elem_type.isF32() ||
         result_elem_type.isF64()) {
-      return AtomicRMWKind::minf;
+      return arith::AtomicRMWKind::minf;
     } else if (result_elem_type.isSignedInteger()) {
-      return AtomicRMWKind::mins;
+      return arith::AtomicRMWKind::mins;
     } else if (result_elem_type.isUnsignedInteger() ||
                result_elem_type.isSignlessInteger()) {
-      return AtomicRMWKind::minu;
+      return arith::AtomicRMWKind::minu;
     } else {
       assert(false && "unexpected atomic reduce operation");
     }
@@ -1098,9 +1099,9 @@ AtomicRMWKind getAtomicRMWKind(Region& body) {
     // the operand having type i1 or unsigned.
     auto int_tp = result_elem_type.dyn_cast<IntegerType>();
     if (result_elem_type.isUnsignedInteger()) {
-      return AtomicRMWKind::maxu;
+      return arith::AtomicRMWKind::maxu;
     } else if (int_tp && int_tp.getWidth() == 1) {
-      return AtomicRMWKind::maxu;
+      return arith::AtomicRMWKind::maxu;
     } else {
       assert(false && "unexpected atomic reduce operation");
     }
@@ -1109,9 +1110,9 @@ AtomicRMWKind getAtomicRMWKind(Region& body) {
     // the operand having type i1 or unsigned.
     auto int_tp = result_elem_type.dyn_cast<IntegerType>();
     if (result_elem_type.isUnsignedInteger()) {
-      return AtomicRMWKind::minu;
+      return arith::AtomicRMWKind::minu;
     } else if (int_tp && int_tp.getWidth() == 1) {
-      return AtomicRMWKind::minu;
+      return arith::AtomicRMWKind::minu;
     } else {
       assert(false && "unexpected atomic reduce operation");
     }
@@ -1119,7 +1120,7 @@ AtomicRMWKind getAtomicRMWKind(Region& body) {
     assert(false && "unexpected atomic reduce operation");
   }
   llvm_unreachable("unsupported atomic operation kind");
-  return AtomicRMWKind::addf;
+  return arith::AtomicRMWKind::addf;
 }
 
 Value getRootMemRef(Value memref) {

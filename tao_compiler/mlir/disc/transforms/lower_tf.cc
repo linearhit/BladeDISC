@@ -109,7 +109,7 @@ class ConvertSqueezeOpDynamic : public OpRewritePattern<TF::SqueezeOp> {
           shape_values.push_back(rewriter.create<tensor::DimOp>(loc, input, i));
         } else {
           shape_values.push_back(
-              rewriter.create<ConstantIndexOp>(loc, dim_size));
+              rewriter.create<arith::ConstantIndexOp>(loc, dim_size));
         }
       }
       Value new_shape = rewriter.create<tensor::FromElementsOp>(

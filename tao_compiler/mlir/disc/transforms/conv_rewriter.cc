@@ -149,11 +149,11 @@ struct DiscConvRewriterPass
     // convert input format to NCHW unconditionally ATM. Re-visit this for CPU.
     auto dimension_numbers = op.dimension_numbers();
     int64_t input_batch_dimension =
-        dimension_numbers.input_batch_dimension().getInt();
+        dimension_numbers.getInputBatchDimension();
     int64_t input_feature_dimension =
-        dimension_numbers.input_feature_dimension().getInt();
+        dimension_numbers.getInputFeatureDimension();
     auto input_spatial_dimensions =
-        ConvertDenseIntAttr(dimension_numbers.input_spatial_dimensions());
+        ConvertDenseIntAttr(dimension_numbers.getInputSpatialDimensions());
 
     SmallVector<int64_t, 4> dst_format = {0, 1};
     SmallVector<int64_t, 4> src_format = {input_batch_dimension,
@@ -176,11 +176,10 @@ struct DiscConvRewriterPass
     // convert filter format to OIHW unconditionally ATM. Re-visit this for CPU.
     auto dimension_numbers = op.dimension_numbers();
     int64_t filter_input_feature_dimension =
-        dimension_numbers.kernel_input_feature_dimension().getInt();
+        dimension_numbers.getKernelInputFeatureDimension();
     int64_t filter_output_feature_dimension =
-        dimension_numbers.kernel_output_feature_dimension().getInt();
-    auto filter_spatial_dimensions =
-        ConvertDenseIntAttr(dimension_numbers.kernel_spatial_dimensions());
+        dimension_numbers.getKernelOutputFeatureDimension();
+    auto filter_spatial_dimensions = dimension_numbers.getKernelSpatialDimensions();
 
     SmallVector<int64_t, 4> dst_format = {0, 1};
     SmallVector<int64_t, 4> src_format = {filter_output_feature_dimension,
@@ -203,11 +202,10 @@ struct DiscConvRewriterPass
     // convert output format to NCHW unconditionally ATM. Re-visit this for CPU.
     auto dimension_numbers = op.dimension_numbers();
     int64_t output_batch_dimension =
-        dimension_numbers.output_batch_dimension().getInt();
+        dimension_numbers.getOutputBatchDimension();
     int64_t output_feature_dimension =
-        dimension_numbers.output_feature_dimension().getInt();
-    auto output_spatial_dimensions =
-        ConvertDenseIntAttr(dimension_numbers.output_spatial_dimensions());
+        dimension_numbers.getOutputFeatureDimension();
+    auto output_spatial_dimensions = dimension_numbers.getOutputSpatialDimensions();
 
     SmallVector<int64_t, 4> dst_format = {0, 1};
     SmallVector<int64_t, 4> src_format = {output_batch_dimension,

@@ -347,7 +347,8 @@ gpu::LaunchFuncOp expandMemRef(gpu::LaunchFuncOp launch_func_op, Value memref,
   b.setInsertionPoint(launch_func_op);
   auto new_launch_func_op = b.create<gpu::LaunchFuncOp>(
       loc, new_gpu_func_op, launch_func_op.getGridSizeOperandValues(),
-      launch_func_op.getBlockSizeOperandValues(), new_operands);
+      launch_func_op.getBlockSizeOperandValues(),
+      launch_func_op.dynamicSharedMemorySize(), new_operands);
 
   launch_func_op.erase();
   gpu_func_op.erase();

@@ -26,8 +26,8 @@ limitations under the License.
 //   we may have GEMM ops with different element types.
 
 #include "llvm/Support/Debug.h"
-#include "mlir-hlo/Dialect/mhlo/IR/disc_ral_ops.h"
-#include "mlir-hlo/Dialect/mhlo/IR/lhlo_ops.h"
+#include "mlir-hlo/Dialect/disc-ral/IR/disc_ral_ops.h"
+#include "mlir-hlo/Dialect/lhlo/IR/lhlo_ops.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -301,8 +301,8 @@ Value GetConvMetadata(OpTy op, PatternRewriter& rewriter) {
   fields.insert(fields.end(), rhs_dilation.begin(), rhs_dilation.end());
 
   for (auto&& en : llvm::enumerate(fields)) {
-    Value value = rewriter.create<ConstantIntOp>(loc, en.value(), field_type);
-    Value offset = rewriter.create<ConstantIndexOp>(loc, en.index());
+    Value value = rewriter.create<arith::ConstantIntOp>(loc, en.value(), field_type);
+    Value offset = rewriter.create<arith::ConstantIndexOp>(loc, en.index());
     SmallVector<Value, 1> ivs(1, offset);
     rewriter.create<memref::StoreOp>(loc, value, metadata_value, ivs);
   }
@@ -325,8 +325,8 @@ struct ConvConverter : public OpRewritePattern<ConvOp> {
     // padding
     auto padding = disc_ral::ConvertDenseIntAttr(op.padding());
     for (auto&& en : llvm::enumerate(padding)) {
-      Value value = rewriter.create<ConstantIntOp>(loc, en.value(), field_type);
-      Value offset = rewriter.create<ConstantIndexOp>(loc, en.index());
+      Value value = rewriter.create<arith::ConstantIntOp>(loc, en.value(), field_type);
+      Value offset = rewriter.create<arith::ConstantIndexOp>(loc, en.index());
       SmallVector<Value, 1> ivs(1, offset);
       rewriter.create<memref::StoreOp>(loc, value, metadata_value, ivs);
     }
@@ -511,7 +511,7 @@ struct CopyLikeOpConvertor : public OpRewritePattern<OpTy> {
     Value targetShape = rewriter.create<memref::AllocaOp>(loc, shapeType);
     SmallVector<Value> dimSizes;
     for (int i = 0; i < targetType.getRank(); ++i) {
-      Value idx = rewriter.create<ConstantIndexOp>(loc, i);
+      Value idx = rewriter.create<arith::ConstantIndexOp>(loc, i);
       Value dimSize = rewriter.create<memref::DimOp>(loc, result, idx);
       dimSizes.push_back(dimSize);
       rewriter.create<memref::StoreOp>(loc, dimSize, targetShape, idx);

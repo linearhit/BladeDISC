@@ -56,6 +56,7 @@ limitations under the License.
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"  // TF:llvm-project
@@ -88,7 +89,7 @@ struct ExtractFromExtentTensorCanonicalizationPattern
     auto shape_of_op = op.tensor().getDefiningOp<shape::ShapeOfOp>();
     if (!shape_of_op) return failure();
     Value index = op.indices().front();
-    rewriter.replaceOpWithNewOp<tensor::DimOp>(op, shape_of_op.arg(), index);
+    rewriter.replaceOpWithNewOp<tensor::DimOp>(op, shape_of_op.getArg(), index);
     return success();
   }
 };
@@ -124,10 +125,10 @@ struct DynamicReshapeOpPartialShapeInference
       int64_t new_value = -1;
       if (result_type.isDynamicDim(element.index())) {
         if (ConstantIntOp constant_op =
-                element.value().getDefiningOp<ConstantIntOp>()) {
+                element.value().getDefiningOp<arith::ConstantIntOp>()) {
           new_value = constant_op.getValue();
         } else if (ConstantIndexOp constant_op =
-                       element.value().getDefiningOp<ConstantIndexOp>()) {
+                       element.value().getDefiningOp<arith::ConstantIndexOp>()) {
           new_value = constant_op.getValue();
         }
       }
@@ -243,13 +244,13 @@ class DynamicBroadcastInDimOpSimplifier
     for (int d = 0; d < inputTy.getRank(); ++d) {
       Value dimValue = fromElementsOp->getOperand(d);
       auto indexCastOp =
-          dyn_cast_or_null<IndexCastOp>(dimValue.getDefiningOp());
+          dyn_cast_or_null<arith::IndexCastOp>(dimValue.getDefiningOp());
       if (indexCastOp) dimValue = indexCastOp->getOperand(0);
       auto dimOp = dyn_cast_or_null<tensor::DimOp>(dimValue.getDefiningOp());
       if (!dimOp || dimOp.source() != reshapeOp->getOperand(0))
         return failure();
       auto indexOp =
-          dyn_cast_or_null<ConstantIndexOp>(dimOp.index().getDefiningOp());
+          dyn_cast_or_null<arith::ConstantIndexOp>(dimOp.index().getDefiningOp());
       if (!indexOp || indexOp.getValue() != d) return failure();
       bcastDims.push_back(d);
     }

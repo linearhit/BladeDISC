@@ -80,8 +80,8 @@ struct DiscGpuConvPaddingLegalizationPass
     Location loc = op.getLoc();
     OpBuilder b(op);
     auto shape_scalar_type = padding_tp.getElementType();
-    Value zero = b.create<ConstantIntOp>(loc, 0, shape_scalar_type);
-    Value one = b.create<ConstantIntOp>(loc, 1, shape_scalar_type);
+    Value zero = b.create<arith::ConstantIntOp>(loc, 0, shape_scalar_type);
+    Value one = b.create<arith::ConstantIntOp>(loc, 1, shape_scalar_type);
 
     // We suppose this pass runs after the `dhlo_conv_rewriter` pass, thus we
     // have:
@@ -118,20 +118,20 @@ struct DiscGpuConvPaddingLegalizationPass
     new_padding_for_conv.reserve(num_spatial_dims * 2);
     for (int i = 0; i < num_spatial_dims; ++i) {
       SmallVector<Value, 1> low_indices(1,
-                                        b.create<ConstantIndexOp>(loc, 2 * i));
+                                        b.create<arith::ConstantIndexOp>(loc, 2 * i));
       SmallVector<Value, 1> high_indices(
-          1, b.create<ConstantIndexOp>(loc, 2 * i + 1));
+          1, b.create<arith::ConstantIndexOp>(loc, 2 * i + 1));
       Value low_value = b.create<tensor::ExtractOp>(loc, padding, low_indices);
       Value high_value =
           b.create<tensor::ExtractOp>(loc, padding, high_indices);
       Value pred =
-          b.create<CmpIOp>(loc, CmpIPredicate::sle, low_value, high_value);
+          b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle, low_value, high_value);
       Value common_value =
           b.create<mlir::SelectOp>(loc, pred, low_value, high_value);
       Value remaining_low_value =
-          b.create<mlir::SubIOp>(loc, low_value, common_value);
+          b.create<mlir::arith::SubIOp>(loc, low_value, common_value);
       Value remaining_high_value =
-          b.create<mlir::SubIOp>(loc, high_value, common_value);
+          b.create<mlir::arith::SubIOp>(loc, high_value, common_value);
       // same padding value for low & high after rewritering
       new_padding_for_conv.push_back(common_value);
       new_padding_for_conv.push_back(common_value);

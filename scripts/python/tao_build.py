@@ -337,7 +337,7 @@ def build_tao_compiler(root, args):
         BAZEL_BUILD_CMD += " BAZEL_UPDATE_CUSTOM_SNAPSHOT=true"
     BAZEL_BUILD_CMD += " BAZEL_HACK_LOG_GIT_CMD_TO=/tmp/git_wrapper.log"
     BAZEL_BUILD_CMD += " BAZEL_HACK_REDIRECT_URL=https://github.com,http://gitlab.alibaba-inc.com"
-    BAZEL_BUILD_CMD += " bazel build --experimental_multi_threaded_digest --define framework_shared_object=false" + ci_build_flag()
+    BAZEL_BUILD_CMD = " bazel build --experimental_multi_threaded_digest --define framework_shared_object=false" + ci_build_flag()
     TARGET_TAO_COMPILER_MAIN = "//tensorflow/compiler/decoupling:tao_compiler_main"
     TARGET_DISC_OPT = "//tensorflow/compiler/mlir/disc:disc-opt"
 
