@@ -21,6 +21,7 @@ limitations under the License.
 #include "llvm/Support/Debug.h"
 #include "mlir-hlo/Dialect/lhlo/IR/lhlo_ops.h"
 #include "mlir-hlo/Dialect/lhlo/transforms/map_lmhlo_to_scalar_op.h"
+#include "mlir-hlo/Dialect/mhlo/transforms/map_mhlo_to_scalar_op.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -141,32 +142,32 @@ AccumulatorFactory getFactory(OpBuilder& b, Location loc, Region& body) {
     auto result_type = calc_op->getOperand(num_operands - 1).getType();
     auto result_elem_type = result_type.cast<MemRefType>().getElementType();
     if (isa<lmhlo::AddOp>(calc_op)) {
-      return lmhlo::HloOpToStdScalarOp::map<lmhlo::AddOp>(
+      return lmhlo::LhloOpToStdScalarOp::map<lmhlo::AddOp>(
           llvm::cast<lmhlo::AddOp>(calc_op), result_elem_type, operand_values,
           &b);
     } else if (isa<lmhlo::MulOp>(calc_op)) {
-      return lmhlo::HloOpToStdScalarOp::map<lmhlo::MulOp>(
+      return lmhlo::LhloOpToStdScalarOp::map<lmhlo::MulOp>(
           llvm::cast<lmhlo::MulOp>(calc_op), result_elem_type, operand_values,
           &b);
     } else if (isa<lmhlo::MaxOp>(calc_op)) {
-      return lmhlo::HloOpToStdScalarOp::map<lmhlo::MaxOp>(
+      return lmhlo::LhloOpToStdScalarOp::map<lmhlo::MaxOp>(
           llvm::cast<lmhlo::MaxOp>(calc_op), result_elem_type, operand_values,
           &b);
     } else if (isa<lmhlo::MinOp>(calc_op)) {
-      return lmhlo::HloOpToStdScalarOp::map<lmhlo::MinOp>(
+      return lmhlo::LhloOpToStdScalarOp::map<lmhlo::MinOp>(
           llvm::cast<lmhlo::MinOp>(calc_op), result_elem_type, operand_values,
           &b);
     } else if (isa<lmhlo::OrOp>(calc_op)) {
-      return lmhlo::HloOpToStdScalarOp::map<lmhlo::OrOp>(
+      return lmhlo::LhloOpToStdScalarOp::map<lmhlo::OrOp>(
           llvm::cast<lmhlo::OrOp>(calc_op), result_elem_type, operand_values,
           &b);
     } else if (isa<lmhlo::AndOp>(calc_op)) {
-      return lmhlo::HloOpToStdScalarOp::map<lmhlo::AndOp>(
+      return lmhlo::LhloOpToStdScalarOp::map<lmhlo::AndOp>(
           llvm::cast<lmhlo::AndOp>(calc_op), result_elem_type, operand_values,
           &b);
     } else {
       assert(false && "unexpected reduce operation");
-      return lmhlo::HloOpToStdScalarOp::map<lmhlo::AddOp>(
+      return lmhlo::LhloOpToStdScalarOp::map<lmhlo::AddOp>(
           llvm::cast<lmhlo::AddOp>(calc_op), result_elem_type, operand_values,
           &b);
     }
@@ -187,9 +188,9 @@ Value elementalLower<lmhlo::SliceOp>(OpBuilder* b, Location loc,
   for (int dim = 0; dim < rank; ++dim) {
     // for each dim, output[..a..] = input[..a * a_stride + a_start..]
     Value start_index = b->create<arith::ConstantIndexOp>(
-        loc, op.start_indices().getValue<int64_t>(dim));
+        loc, op.start_indices().getValues<int64_t>()[dim]);
     Value stride =
-        b->create<arith::ConstantIndexOp>(loc, op.strides().getValue<int64_t>(dim));
+        b->create<arith::ConstantIndexOp>(loc, op.strides().getValues<int64_t>()[dim]);
     auto input_dim = b->create<arith::AddIOp>(
         loc, b->create<arith::MulIOp>(loc, output_index[dim], stride), start_index);
     input_index.push_back(input_dim);
@@ -489,7 +490,7 @@ Value elementalLower<lmhlo::DynamicPadOp>(OpBuilder* b, Location loc,
     interior_padding = mayConvertToIndexType(interior_padding, b, loc);
     auto x = b->create<arith::SubIOp>(loc, output_index[dim], edge_padding_low);
     auto interior_padding_p1 = b->create<arith::AddIOp>(loc, interior_padding, one);
-    auto y = b->create<UnsignedRemIOp>(loc, x, interior_padding_p1);
+    auto y = b->create<arith::RemUIOp>(loc, x, interior_padding_p1);
     auto z = b->create<arith::DivUIOp>(loc, x, interior_padding_p1);
     in_bound = b->create<arith::AndIOp>(
         loc, in_bound, b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, x, zero));
@@ -529,7 +530,7 @@ Value elementalLower<lmhlo::DynamicPadOp>(OpBuilder* b, Location loc,
   b->create<scf::YieldOp>(loc, padded_value);
 
   b->setInsertionPointAfter(if_inbound_op);
-  return *(if_inbound_op.results().begin());
+  return *(if_inbound_op.getResults().begin());
 }
 
 Value lowerGatherOpInternal(OpBuilder* b, Location loc, Operation* op,
@@ -552,14 +553,10 @@ Value lowerGatherOpInternal(OpBuilder* b, Location loc, Operation* op,
   int64_t operand_rank = operand_ty.getRank();
   int64_t start_indices_rank = start_indices_ty.getRank();
   int64_t result_rank = result_ty.getRank();
-  SmallVector<int64_t, 4> collapsed_slice_dims(
-      dimension_numbers.collapsed_slice_dims().getValues<int64_t>());
-  SmallVector<int64_t, 4> offset_dims(
-      dimension_numbers.offset_dims().getValues<int64_t>());
-  int64_t index_vector_dim =
-      dimension_numbers.index_vector_dim().getValue().getSExtValue();
-  SmallVector<int64_t, 4> start_index_map(
-      dimension_numbers.start_index_map().getValues<int64_t>());
+  auto collapsed_slice_dims = dimension_numbers.getCollapsedSliceDims();
+  auto offset_dims = dimension_numbers.getOffsetDims();
+  int64_t index_vector_dim = dimension_numbers.getIndexVectorDim();
+  auto start_index_map = dimension_numbers.getStartIndexMap();
 
   // get initial operand_index
   SmallVector<Value, 4> operand_index;
@@ -773,12 +770,12 @@ Value elementalLower<lmhlo::ConcatenateOp>(OpBuilder* b, Location loc,
     if (i == num_input_operands - 1) {
       b->create<scf::YieldOp>(loc, zero_element);  // expect never used
     } else {
-      b->create<scf::YieldOp>(loc, if_inbound_ops[i + 1].results());
+      b->create<scf::YieldOp>(loc, if_inbound_ops[i + 1].getResults());
     }
     b->setInsertionPointAfter(if_inbound_ops[i]);
   }
   b->setInsertionPointAfter(if_inbound_ops[0]);
-  return *(if_inbound_ops[0].results().begin());
+  return *(if_inbound_ops[0].getResults().begin());
 }
 
 // There is no 'identityOp' in std dialect, thus we provide a basic
@@ -835,7 +832,7 @@ Value elementalLowerIota(OpBuilder* b, const Location& loc, Operation* op,
     result = mayConvertToIndexType(elem_index_linear, b, loc);
   } else if (result_element_ty.dyn_cast<FloatType>()) {
     auto idx2int = mayConvertToIntegerType(elem_index_linear, b, loc);
-    result = b->create<mlir::UIToFPOp>(loc, idx2int, result_element_ty);
+    result = b->create<arith::UIToFPOp>(loc, idx2int, result_element_ty);
   } else {
     op->emitError("element_type of Iota/DynamicIotaOp not implemented");
     return Value(nullptr);
@@ -913,7 +910,7 @@ Value elementalLower<lmhlo::ReduceOp>(OpBuilder* b, Location loc,
   yield_values.push_back(acc);
   b->create<scf::YieldOp>(loc, yield_values);
   b->setInsertionPointAfter(forOp);
-  return *(forOp.results().begin());
+  return *(forOp.getResults().begin());
 }
 
 scf::ForOp createLoopAndSetInsPt(OpBuilder& b, Location loc, Value& var,
@@ -946,10 +943,10 @@ Value elementalLower<lmhlo::IsFiniteOp>(OpBuilder* b, Location loc,
   };
 
   Value operand = maybe_load_from_cache(operand_memref);
-  auto abs_operand = b->create<AbsFOp>(loc, operand);
+  auto abs_operand = b->create<math::AbsOp>(loc, operand);
   auto INF = b->create<ConstantOp>(
       loc, elem_tp, b->getF32FloatAttr(std::numeric_limits<float>::infinity()));
-  return b->create<CmpFOp>(loc, CmpFPredicate::ONE, abs_operand, INF);
+  return b->create<arith::CmpFOp>(loc, arith::CmpFPredicate::ONE, abs_operand, INF);
 }
 
 template <>
@@ -981,10 +978,10 @@ Value elementalLower<lmhlo::ClampOp>(OpBuilder* b, Location loc,
   Value max = maybe_load_from_memref(max_memref, max_is_scalar);
   Value operand = maybe_load_from_memref(operand_memref, false);
 
-  Value lb_clipped = lmhlo::impl::MapLhloOpToStdScalarOp<lmhlo::MaxOp>(
+  Value lb_clipped = mhlo::impl::MapMhloOpToStdScalarOp<lmhlo::LhloToHloOp<lmhlo::MaxOp>>(
       loc, ArrayRef<Type>{elem_ty}, ArrayRef<Type>{elem_ty, elem_ty},
       ArrayRef<Value>{operand, min}, b);
-  return lmhlo::impl::MapLhloOpToStdScalarOp<lmhlo::MinOp>(
+  return mhlo::impl::MapMhloOpToStdScalarOp<lmhlo::LhloToHloOp<lmhlo::MinOp>>(
       loc, ArrayRef<Type>{elem_ty}, ArrayRef<Type>{elem_ty, elem_ty},
       ArrayRef<Value>{lb_clipped, max}, b);
 }
@@ -992,7 +989,7 @@ Value elementalLower<lmhlo::ClampOp>(OpBuilder* b, Location loc,
 memref::ReinterpretCastOp createMemRef1DReinterpretCastWithStaticShape(
     OpBuilder& b, Location loc, Value memref) {
   auto memref_ty = memref.getType().cast<MemRefType>();
-  assert(memref_ty.getAffineMaps().empty());
+  assert(memref_ty.getLayout().getAffineMaps().IsEmpty());
   assert(memref_ty.hasStaticShape());
 
   int64_t nElems = 1;
@@ -1002,7 +999,7 @@ memref::ReinterpretCastOp createMemRef1DReinterpretCastWithStaticShape(
 
   auto memref_1d_type =
       MemRefType::get({nElems}, memref_ty.getElementType(),
-                      memref_ty.getAffineMaps(), memref_ty.getMemorySpace());
+                      memref_ty.getLayout(), memref_ty.getMemorySpace());
   SmallVector<int64_t> sizes{nElems};
   SmallVector<int64_t> strides{1};
   return b.create<memref::ReinterpretCastOp>(loc, memref_1d_type, memref, 0,
@@ -1014,7 +1011,7 @@ memref::ReinterpretCastOp createMemRef1DReinterpretCast(OpBuilder& b,
                                                         Location loc,
                                                         Value memref) {
   auto memref_ty = memref.getType().cast<MemRefType>();
-  assert(memref_ty.getAffineMaps().empty());
+  assert(memref_ty.getLayout().getAffineMaps().isEmpty());
   if (memref_ty.hasStaticShape()) {
     return createMemRef1DReinterpretCastWithStaticShape(b, loc, memref);
   }
@@ -1025,7 +1022,7 @@ memref::ReinterpretCastOp createMemRef1DReinterpretCast(OpBuilder& b,
       loc, b.getIndexType(), b.getIntegerAttr(b.getIndexType(), 0));
   auto memref_1d_type =
       MemRefType::get({MemRefType::kDynamicSize}, memref_ty.getElementType(),
-                      memref_ty.getAffineMaps(), memref_ty.getMemorySpace());
+                      memref_ty.getLayout(), memref_ty.getMemorySpace());
   return b.create<memref::ReinterpretCastOp>(
       loc, memref_1d_type, memref, zero, ValueRange{size}, ValueRange{stride});
 }

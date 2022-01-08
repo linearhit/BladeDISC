@@ -29,6 +29,8 @@ limitations under the License.
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
+#include "mlir-hlo/Dialect/disc-ral/transforms/passes.h"
+#include "mlir-hlo/Dialect/lhlo/transforms/passes.h"
 #include "mlir-hlo/Dialect/mhlo/transforms/passes.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
@@ -38,6 +40,7 @@ limitations under the License.
 #include "mlir/Conversion/ShapeToStandard/ShapeToStandard.h"  // from @llvm-project
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -103,11 +106,11 @@ LogicalResult RewriteLLVMModule(llvm::Module* m) {
   llvm::IRBuilder<> b(block);
   auto typed_ctx_struct = b.CreateBitOrPointerCast(
       ctx_struct, llvm::Type::getInt8Ty(ctx)->getPointerTo()->getPointerTo());
-  auto real_ctx = b.CreateLoad(typed_ctx_struct);
-  auto untyped_real_func = b.CreateConstGEP1_32(typed_ctx_struct, 1);
-  auto real_func = b.CreateLoad(b.CreateBitOrPointerCast(
+  auto real_ctx = b.CreateLoad(llvm::Type::getInt8Ty(ctx)->getPointerTo(), typed_ctx_struct);
+  auto untyped_real_func = b.CreateConstGEP1_32(typed_ctx_struct->getType()->getScalarType()->getPointerElementType(), typed_ctx_struct, 1);
+  auto real_func = b.CreateLoad(func_type->getPointerTo(), b.CreateBitOrPointerCast(
       untyped_real_func, func_type->getPointerTo()->getPointerTo()));
-  auto first_arg = b.CreateLoad(api_args);
+  auto first_arg = b.CreateLoad(api_args->getType()->getPointerElementType(), api_args);
   auto untyped_first_arg = b.CreateBitOrPointerCast(
       first_arg, llvm::Type::getInt8Ty(ctx)->getPointerTo()->getPointerTo());
   b.CreateStore(real_ctx, untyped_first_arg);
@@ -259,7 +262,7 @@ LogicalResult LowerHLOToLLVM(ModuleOp m, const DISCLoweringOptions& options) {
   pm.addNestedPass<FuncOp>(createTensorBufferizePass());
   // bufferize std.constant ops that have tensor types.
   pm.addNestedPass<FuncOp>(disc_ral::createDiscStdBufferizePass());
-  pm.addNestedPass<FuncOp>(createFinalizingBufferizePass());
+  pm.addNestedPass<FuncOp>(bufferization::createFinalizingBufferizePass());
   pm.addNestedPass<FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<FuncOp>(createCSEPass());
   pm.addNestedPass<FuncOp>(createCanonicalizerPass());
@@ -297,7 +300,7 @@ LogicalResult LowerHLOToLLVM(ModuleOp m, const DISCLoweringOptions& options) {
   pm.addNestedPass<FuncOp>(createCSEPass());
   pm.addNestedPass<FuncOp>(createCanonicalizerPass());
 
-  pm.addNestedPass<FuncOp>(createBufferDeallocationPass());
+  pm.addNestedPass<FuncOp>(bufferization::createBufferDeallocationPass());
 
   pm.addPass(disc_ral::createRalInjectExecutionContextPass());
   pm.addNestedPass<FuncOp>(disc_ral::createDiscLowerToLibraryCallPass());

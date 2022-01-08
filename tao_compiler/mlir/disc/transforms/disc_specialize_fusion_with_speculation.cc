@@ -94,7 +94,7 @@ Value createViewLike(OpBuilder& b, Location loc, Value from, Value to) {
   auto fromType = from.getType().cast<MemRefType>();
   auto targetType =
       MemRefType::get(toType.getShape(), fromType.getElementType(),
-                      toType.getLayout().getAffineMaps(), toType.getMemorySpace());
+                      toType.getLayout(), toType.getMemorySpace());
   return CastMemRefTo(b, loc, from, targetType, toShape);
 }
 
@@ -431,7 +431,7 @@ struct DiscSpecializeFusionWithSpeculationPass
                                     threshold);
     Value is_even =
         b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                         b.create<UnsignedRemIOp>(
+                         b.create<arith::RemUIOp>(
                              loc, out_element_number,
                              b.create<arith::ConstantIndexOp>(loc, kVectorizeSize)),
                          b.create<arith::ConstantIndexOp>(loc, 0));

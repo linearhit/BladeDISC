@@ -130,7 +130,7 @@ void ReviseArgsForStaticRankPass::runOnOperation() {
   // Step 3, update input_placement attr
   SmallVector<mlir::NamedAttribute, 4> new_attributes;
   for (auto attr : dict_attr) {
-    if (attr.first != placement_utils::kInputPlacementAttr) {
+    if (attr.getName() != placement_utils::kInputPlacementAttr) {
       new_attributes.push_back(attr);
     }
   }

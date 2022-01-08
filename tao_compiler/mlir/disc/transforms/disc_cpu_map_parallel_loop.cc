@@ -52,9 +52,12 @@ bool isSmallParallelOp(scf::ParallelOp op) {
     auto stepOp =
         dyn_cast_or_null<arith::ConstantIndexOp>(std::get<2>(en).getDefiningOp());
     if (!lowerOp || !upperOp || !stepOp) return false;
+    auto step = stepOp.getValue().cast<IntegerAttr>().getInt();
     numElems *=
-        ((upperOp.getValue() - lowerOp.getValue() + stepOp.getValue() - 1) /
-         stepOp.getValue());
+        ((upperOp.getValue().cast<IntegerAttr>().getInt() -
+          lowerOp.getValue().cast<IntegerAttr>().getInt() +
+          step - 1) /
+         step);
   }
   return numElems < kMaxNumIterationsForSmallParallelOp;
 }
@@ -66,9 +69,12 @@ bool isSmallForOp(scf::ForOp op) {
       dyn_cast_or_null<arith::ConstantIndexOp>(op.getUpperBound().getDefiningOp());
   auto stepOp = dyn_cast_or_null<arith::ConstantIndexOp>(op.getStep().getDefiningOp());
   if (!lowerOp || !upperOp || !stepOp) return false;
+  auto step = stepOp.getValue().cast<IntegerAttr>().getInt();
   int numIterations =
-      ((upperOp.getValue() - lowerOp.getValue() + stepOp.getValue() - 1) /
-       stepOp.getValue());
+      ((upperOp.getValue().cast<IntegerAttr>().getInt() -
+        lowerOp.getValue().cast<IntegerAttr>().getInt() +
+        step - 1) /
+       step);
   return numIterations < kMaxNumIterationsForSmallForOp;
 }
 

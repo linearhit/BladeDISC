@@ -94,8 +94,7 @@ struct DotToDotGeneralConvert : public OpRewritePattern<mhlo::DotOp> {
     auto dot_dimension_attr =
         mhlo::DotDimensionNumbersAttr::get(
             rewriter.getContext(),
-            lhs_batch_dims,
-            rhs_batch_dims,
+            {}, {},
             lhs_contracting_dims,
             rhs_contracting_dims);
 
@@ -162,8 +161,7 @@ struct TransposeFoldingConvert : public OpRewritePattern<mhlo::DotGeneralOp> {
 
     std::vector<int64_t> rhs_contracting_dims;
     if (tp_rhs) {
-      for (auto& en : llvm::enumerate(
-               dim_numbers.rhs_contracting_dimensions().getValues<int64_t>())) {
+      for (auto& en : llvm::enumerate(dim_numbers.getRhsContractingDimensions())) {
         rhs_contracting_dims.push_back(rhs_perm[en.value()]);
       }
     } else {
@@ -173,8 +171,8 @@ struct TransposeFoldingConvert : public OpRewritePattern<mhlo::DotGeneralOp> {
     auto dot_dimension_attr =
         mhlo::DotDimensionNumbersAttr::get(
             rewriter.getContext(),
-            dim_numbers.lhs_batching_dimensions(),
-            dim_numbers.rhs_batching_dimensions(),
+            dim_numbers.getLhsBatchingDimensions(),
+            dim_numbers.getRhsBatchingDimensions(),
             lhs_contracting_dims,
             rhs_contracting_dims);
 

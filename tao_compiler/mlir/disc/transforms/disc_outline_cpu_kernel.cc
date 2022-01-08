@@ -264,7 +264,7 @@ LogicalResult rewriteLaunchOpSetting(scf::ParallelOp parallelOp,
   OpBuilder builder(parallelOp);
   int numIvs = parallelOp.getInductionVars().size();
   auto launchSettingType = MemRefType::get(
-      {numIvs}, builder.getIndexType(), ArrayRef<AffineMap>{},
+      {numIvs}, builder.getIndexType(), MemRefLayoutAttrInterface(),
       StringAttr::get(parallelOp->getContext(), placement_utils::kCpu));
   Value lowerBound = builder.create<memref::AllocaOp>(loc, launchSettingType);
   Value upperBound = builder.create<memref::AllocaOp>(loc, launchSettingType);

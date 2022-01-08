@@ -195,10 +195,8 @@ struct DotGeneralOpConvertor : public OpRewritePattern<DotGeneralOp> {
     }
 
     auto dot_dimension_attr = op.dot_dimension_numbers();
-    auto lhs_batching_dims = llvm::to_vector<4>(
-        dot_dimension_attr.lhs_batching_dimensions().getValues<int64_t>());
-    auto rhs_batching_dims = llvm::to_vector<4>(
-        dot_dimension_attr.rhs_batching_dimensions().getValues<int64_t>());
+    auto lhs_batching_dims = dot_dimension_attr.getLhsBatchingDimensions();
+    auto rhs_batching_dims = dot_dimension_attr.getRhsBatchingDimensions();
 
     if (lhs_batching_dims.size() != rhs_batching_dims.size()) {
       return op.emitOpError() << "unmatched batch dims size.";
@@ -211,10 +209,8 @@ struct DotGeneralOpConvertor : public OpRewritePattern<DotGeneralOp> {
       }
     }
 
-    auto lhs_contracting_dims = llvm::to_vector<4>(
-        dot_dimension_attr.lhs_contracting_dimensions().getValues<int64_t>());
-    auto rhs_contracting_dims = llvm::to_vector<4>(
-        dot_dimension_attr.rhs_contracting_dimensions().getValues<int64_t>());
+    auto lhs_contracting_dims = dot_dimension_attr.getLhsContractingDimensions();
+    auto rhs_contracting_dims = dot_dimension_attr.getRhsContractingDimensions();
     // TODO: support multi-dim contracting
     if ((lhs_contracting_dims.size() != 1) ||
         (rhs_contracting_dims.size() != 1)) {
@@ -267,30 +263,26 @@ Value GetConvMetadata(OpTy op, PatternRewriter& rewriter) {
   int num_metadata_fields = rank * 3 + (rank - 2) * 2;
   Value metadata_value = rewriter.create<memref::AllocaOp>(
       loc, MemRefType::get(
-               {num_metadata_fields}, field_type, ArrayRef<AffineMap>{},
+               {num_metadata_fields}, field_type, MemRefLayoutAttrInterface(),
                StringAttr::get(op->getContext(), placement_utils::kCpu)));
   std::vector<int64_t> fields;
   auto dimension_numbers = op.dimension_numbers();
   // input layout
-  fields.push_back(dimension_numbers.input_batch_dimension().getInt());
-  fields.push_back(dimension_numbers.input_feature_dimension().getInt());
-  auto input_spatial_dimensions = disc_ral::ConvertDenseIntAttr(
-      dimension_numbers.input_spatial_dimensions());
+  fields.push_back(dimension_numbers.getInputBatchDimension());
+  fields.push_back(dimension_numbers.getInputFeatureDimension());
+  auto input_spatial_dimensions = dimension_numbers.getInputSpatialDimensions();
   fields.insert(fields.end(), input_spatial_dimensions.begin(),
                 input_spatial_dimensions.end());
   // kernel layout
-  fields.push_back(dimension_numbers.kernel_input_feature_dimension().getInt());
-  fields.push_back(
-      dimension_numbers.kernel_output_feature_dimension().getInt());
-  auto kernel_spatial_dimensions = disc_ral::ConvertDenseIntAttr(
-      dimension_numbers.kernel_spatial_dimensions());
+  fields.push_back(dimension_numbers.getKernelInputFeatureDimension());
+  fields.push_back(dimension_numbers.getKernelOutputFeatureDimension());
+  auto kernel_spatial_dimensions = dimension_numbers.getKernelSpatialDimensions();
   fields.insert(fields.end(), kernel_spatial_dimensions.begin(),
                 kernel_spatial_dimensions.end());
   // output layout
-  fields.push_back(dimension_numbers.output_batch_dimension().getInt());
-  fields.push_back(dimension_numbers.output_feature_dimension().getInt());
-  auto output_spatial_dimensions = disc_ral::ConvertDenseIntAttr(
-      dimension_numbers.output_spatial_dimensions());
+  fields.push_back(dimension_numbers.getOutputBatchDimension());
+  fields.push_back(dimension_numbers.getOutputFeatureDimension());
+  auto output_spatial_dimensions = dimension_numbers.getOutputSpatialDimensions();
   fields.insert(fields.end(), output_spatial_dimensions.begin(),
                 output_spatial_dimensions.end());
   // strides
@@ -320,7 +312,7 @@ struct ConvConverter : public OpRewritePattern<ConvOp> {
     int num_metadata_fields = (rank - 2) * 2;
     Value metadata_value = rewriter.create<memref::AllocaOp>(
         loc, MemRefType::get(
-                 {num_metadata_fields}, field_type, ArrayRef<AffineMap>{},
+                 {num_metadata_fields}, field_type, MemRefLayoutAttrInterface(),
                  StringAttr::get(op->getContext(), placement_utils::kCpu)));
     // padding
     auto padding = disc_ral::ConvertDenseIntAttr(op.padding());
@@ -506,7 +498,7 @@ struct CopyLikeOpConvertor : public OpRewritePattern<OpTy> {
     Type shapeIndexType = rewriter.getIndexType();
     auto targetType = result.getType().cast<MemRefType>();
     auto shapeType = MemRefType::get(
-        {targetType.getRank()}, shapeIndexType, targetType.getAffineMaps(),
+        {targetType.getRank()}, shapeIndexType, targetType.getLayout(),
         StringAttr::get(op->getContext(), placement_utils::kCpu));
     Value targetShape = rewriter.create<memref::AllocaOp>(loc, shapeType);
     SmallVector<Value> dimSizes;

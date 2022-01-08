@@ -98,7 +98,7 @@ LogicalResult elemwiseLowerHelper(
   SmallVector<Value, 4> results(vector_size);
   for (int64_t i = 0; i < vector_size; i++) {
     auto operand_values = operand_values_vector[i];
-    auto res = lmhlo::HloOpToStdScalarOp::map<LHLO_OpTy>(
+    auto res = lmhlo::LhloOpToStdScalarOp::map<LHLO_OpTy>(
         llvm::cast<LHLO_OpTy>(op),
         result_memref.getType().cast<MemRefType>().getElementType(),
         operand_values, &b);
@@ -343,14 +343,14 @@ struct MapOpCreator {
 };
 
 template <>
-struct MapOpCreator<lmhlo::MaxOp, arith::CmpIOp, mlir::CmpFOp> {
+struct MapOpCreator<lmhlo::MaxOp, arith::CmpIOp, arith::CmpFOp> {
   static Value build(OpBuilder& b, Location loc, Value lhs, Value rhs) {
     Value result;
     if (lhs.getType().dyn_cast<IntegerType>()) {
       Value cond = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, lhs, rhs);
       result = b.create<mlir::SelectOp>(loc, lhs.getType(), cond, lhs, rhs);
     } else if (lhs.getType().dyn_cast<FloatType>()) {
-      Value cond = b.create<mlir::CmpFOp>(loc, CmpFPredicate::OGE, lhs, rhs);
+      Value cond = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGE, lhs, rhs);
       result = b.create<mlir::SelectOp>(loc, lhs.getType(), cond, lhs, rhs);
     } else {
       assert(false && "not supported data type");
@@ -360,14 +360,14 @@ struct MapOpCreator<lmhlo::MaxOp, arith::CmpIOp, mlir::CmpFOp> {
 };
 
 template <>
-struct MapOpCreator<lmhlo::MinOp, arith::CmpIOp, mlir::CmpFOp> {
+struct MapOpCreator<lmhlo::MinOp, arith::CmpIOp, arith::CmpFOp> {
   static Value build(OpBuilder& b, Location loc, Value lhs, Value rhs) {
     Value result;
     if (lhs.getType().dyn_cast<IntegerType>()) {
       Value cond = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, lhs, rhs);
       result = b.create<mlir::SelectOp>(loc, lhs.getType(), cond, rhs, lhs);
     } else if (lhs.getType().dyn_cast<FloatType>()) {
-      Value cond = b.create<mlir::CmpFOp>(loc, CmpFPredicate::OGE, lhs, rhs);
+      Value cond = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGE, lhs, rhs);
       result = b.create<mlir::SelectOp>(loc, lhs.getType(), cond, rhs, lhs);
     } else {
       assert(false && "not supported data type");
@@ -382,16 +382,16 @@ Value emitReduceMapOp(OpBuilder& b, Location loc, Operation* map_op, Value lhs,
   assert(lhs.getType() == rhs.getType() && "mismatch operands' type");
   if (isa<lmhlo::AddOp>(map_op)) {
     result =
-        MapOpCreator<lmhlo::AddOp, arith::AddIOp, AddFOp>::build(b, loc, lhs, rhs);
+        MapOpCreator<lmhlo::AddOp, arith::AddIOp, arith::AddFOp>::build(b, loc, lhs, rhs);
   } else if (isa<lmhlo::MulOp>(map_op)) {
     result =
-        MapOpCreator<lmhlo::MulOp, arith::MulIOp, MulFOp>::build(b, loc, lhs, rhs);
+        MapOpCreator<lmhlo::MulOp, arith::MulIOp, arith::MulFOp>::build(b, loc, lhs, rhs);
   } else if (isa<lmhlo::MaxOp>(map_op)) {
     result =
-        MapOpCreator<lmhlo::MaxOp, arith::CmpIOp, CmpFOp>::build(b, loc, lhs, rhs);
+        MapOpCreator<lmhlo::MaxOp, arith::CmpIOp, arith::CmpFOp>::build(b, loc, lhs, rhs);
   } else if (isa<lmhlo::MinOp>(map_op)) {
     result =
-        MapOpCreator<lmhlo::MinOp, arith::CmpIOp, CmpFOp>::build(b, loc, lhs, rhs);
+        MapOpCreator<lmhlo::MinOp, arith::CmpIOp, arith::CmpFOp>::build(b, loc, lhs, rhs);
   } else {
     assert(false && "not support reduction map type");
   }
@@ -429,7 +429,7 @@ void emitNotToVectorReduction(OpBuilder& b, Location loc, Operation* root_op,
       output_multidim_index.push_back(idx.value());
     }
   }
-  b.create<AtomicRMWOp>(loc, root_element_type,
+  b.create<memref::AtomicRMWOp>(loc, root_element_type,
                         getAtomicRMWKind(reduce_op.body()), data,
                         root_op->getOperand(2), output_multidim_index);
 }
@@ -529,14 +529,14 @@ LogicalResult lowerWithScheduleColReduction(
   Value h_tile_inbound = b.create<arith::OrIOp>(
       loc,
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                       b.create<UnsignedRemIOp>(loc, shape_h, tilesize_h),
+                       b.create<arith::RemUIOp>(loc, shape_h, tilesize_h),
                        zero),
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
                        b.create<arith::AddIOp>(loc, var_ho, tilesize_h), shape_h));
   Value w_tile_inbound = b.create<arith::OrIOp>(
       loc,
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                       b.create<UnsignedRemIOp>(loc, shape_w, tilesize_w),
+                       b.create<arith::RemUIOp>(loc, shape_w, tilesize_w),
                        zero),
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
                        b.create<arith::AddIOp>(loc, var_wo, tilesize_w), shape_w));
@@ -611,7 +611,7 @@ LogicalResult lowerWithScheduleColReduction(
   b.create<scf::YieldOp>(loc, yield_values_for_hi);
 
   b.setInsertionPointToEnd(&if_tile_inbound_op.getThenRegion().front());
-  b.create<scf::YieldOp>(loc, for_op_hi.results());
+  b.create<scf::YieldOp>(loc, for_op_hi.getResults());
 
   b.setInsertionPointToStart(&if_tile_inbound_op.getElseRegion().front());
 
@@ -720,7 +720,7 @@ LogicalResult lowerWithScheduleColReduction(
     if (isRank2ColReduction(root_op)) {
       for (int var_wi = 0; var_wi < c_tilesize_w; ++var_wi) {
         yield_values_for_hi[root_op_idx * c_tilesize_w + var_wi] =
-            *(if_inbound_op[var_wi].results().begin() + root_op_idx);
+            *(if_inbound_op[var_wi].getResults().begin() + root_op_idx);
       }
       root_op_idx++;
     }
@@ -728,7 +728,7 @@ LogicalResult lowerWithScheduleColReduction(
   b.create<scf::YieldOp>(loc, yield_values_for_hi);
 
   b.setInsertionPointToEnd(&if_tile_inbound_op.getElseRegion().front());
-  b.create<scf::YieldOp>(loc, for_op_hi.results());
+  b.create<scf::YieldOp>(loc, for_op_hi.getResults());
 
   b.setInsertionPointAfter(if_tile_inbound_op);
   root_op_idx = 0;
@@ -747,10 +747,10 @@ LogicalResult lowerWithScheduleColReduction(
         b.setInsertionPointToEnd(&if_inbound_op.getThenRegion().front());
 
         SmallVector<Value, 1> w_idx_vec = {w_idx};
-        b.create<AtomicRMWOp>(
+        b.create<memref::AtomicRMWOp>(
             loc, element_type,
             getAtomicRMWKind(cast<lmhlo::ReduceOp>(root_op).body()),
-            *(if_tile_inbound_op.results().begin() +
+            *(if_tile_inbound_op.getResults().begin() +
               root_op_idx * c_tilesize_w + var_wi),
             root_op->getOperand(2), ValueRange(w_idx_vec));
         b.create<scf::YieldOp>(loc, ValueRange{});
@@ -849,25 +849,25 @@ Value emitWidthAdaptShuffle(OpBuilder& b, Location loc, Value value,
     if (shuffleElemType.isa<FloatType>()) {
       auto f32_ty = b.getF32Type();
       SmallVector<Type, 2> type = {f32_ty, b.getI1Type()};
-      Value ext = b.create<FPExtOp>(loc, f32_ty, value);
+      Value ext = b.create<arith::ExtFOp>(loc, f32_ty, value);
       auto result =
           b.create<gpu::ShuffleOp>(loc, type, ext, offset, width, strAttr)
               .getResult(0);
-      return b.create<FPTruncOp>(loc, shuffleElemType, result);
+      return b.create<arith::TruncFOp>(loc, shuffleElemType, result);
     } else if (shuffleElemType.isa<IntegerType>()) {
       auto i32_ty = b.getIntegerType(32);
       SmallVector<Type, 2> type = {i32_ty, b.getI1Type()};
       Value extend;
       // Special case boolean values, so they get casted to `1` instead of `-1`.
       if (shuffleElemType.isUnsignedInteger() || bit_width == 1) {
-        extend = b.create<ZeroExtendIOp>(loc, i32_ty, value);
+        extend = b.create<arith::ExtUIOp>(loc, i32_ty, value);
       } else {
-        extend = b.create<SignExtendIOp>(loc, i32_ty, value);
+        extend = b.create<arith::ExtSIOp>(loc, i32_ty, value);
       }
       auto result =
           b.create<gpu::ShuffleOp>(loc, type, extend, offset, width, strAttr)
               .getResult(0);
-      return b.create<TruncateIOp>(loc, shuffleElemType, result);
+      return b.create<arith::TruncIOp>(loc, shuffleElemType, result);
     }
   } else if (bit_width == 32) {
     SmallVector<Type, 2> type = {shuffleElemType, b.getI1Type()};
@@ -909,7 +909,7 @@ Value emitWidthAdaptShuffle(OpBuilder& b, Location loc, Value value,
 Value createSharedMemory(OpBuilder& b, Location loc, int64_t size,
                          Type elem_type) {
   auto bufferType =
-      MemRefType::get({size}, elem_type, ArrayRef<AffineMap>{},
+      MemRefType::get({size}, elem_type, {},
                       gpu::GPUDialect::getWorkgroupAddressSpace());
   auto alloc = b.create<memref::AllocOp>(loc, bufferType);
   return alloc.getResult();
@@ -940,7 +940,7 @@ LogicalResult emitInThreadReduction(
       auto data =
           createLoadOrUseCachedValue(loc, &b, *root_op->getOperands().begin(),
                                      input_index, b.saveInsertionPoint());
-      b.create<AtomicRMWOp>(
+      b.create<memref::AtomicRMWOp>(
           loc, root_element_type,
           getAtomicRMWKind(cast<lmhlo::ReduceOp>(root_op).body()), data,
           root_op->getOperand(2), ValueRange({col_reduction_index}));
@@ -1068,7 +1068,7 @@ LogicalResult lowerWithScheduleRowReduction<DISC_ONE_ROUND_SHUFFLE_ROW_REDUCE>(
   Value var_m = vars[0];
   Value var_n = vars[1];
 
-  Value lane_id = b.create<UnsignedRemIOp>(loc, var_n, warp_size);
+  Value lane_id = b.create<arith::RemUIOp>(loc, var_n, warp_size);
   Value warp_id = b.create<arith::DivUIOp>(loc, var_n, warp_size);
 
   // rowIdx = m + warpIdx;
@@ -1229,9 +1229,9 @@ LogicalResult extendShuffleElemType(OpBuilder& b, Location loc, Value value,
 
     Value result;
     if (origin_type.isSignedInteger()) {
-      result = b.create<SignExtendIOp>(loc, shuffleElemType, value);
+      result = b.create<arith::ExtSIOp>(loc, shuffleElemType, value);
     } else {
-      result = b.create<ZeroExtendIOp>(loc, shuffleElemType, value);
+      result = b.create<arith::ExtUIOp>(loc, shuffleElemType, value);
     }
     *extended_value = result;
   } else {
@@ -1251,7 +1251,7 @@ LogicalResult truncateShuffleElemType(OpBuilder& b, Location loc, Value value,
 
     // TODO: There is no signed truncateop, figure out if it's always safe
     // to truncate directly.
-    *truncated_value = b.create<TruncateIOp>(loc, elemType, value);
+    *truncated_value = b.create<arith::TruncIOp>(loc, elemType, value);
   } else {
     llvm::dbgs() << "not supported suffle type"
                  << "\n";
@@ -1505,7 +1505,7 @@ LogicalResult lowerWithScheduleRowReduction<DISC_TWO_ROUND_SHUFFLE_ROW_REDUCE>(
   Value var_m = vars[0];
   Value var_n = vars[1];
 
-  Value lane_id = b.create<UnsignedRemIOp>(loc, var_n, warp_size_val);
+  Value lane_id = b.create<arith::RemUIOp>(loc, var_n, warp_size_val);
   Value warp_id = b.create<arith::DivUIOp>(loc, var_n, warp_size_val);
   Value lane_id_is_zero =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, lane_id, zero);
@@ -1563,7 +1563,7 @@ LogicalResult lowerWithScheduleRowReduction<DISC_TWO_ROUND_SHUFFLE_ROW_REDUCE>(
   b.setInsertionPointToEnd(parallel_op.getBody());
   emitFirstRoundShuffle(
       b, loc, row_reduction_ops, shared_mem_map_vec,
-      for_op_j.results().begin(),  // + i * row_reduction_ops.size(),
+      for_op_j.getResults().begin(),  // + i * row_reduction_ops.size(),
       lane_id_is_zero, warp_id, vector_size);
   b.setInsertionPointToEnd(parallel_op.getBody());
   b.create<gpu::BarrierOp>(loc);
@@ -1633,7 +1633,7 @@ LogicalResult lowerWithScheduleRowReduction<DISC_TWO_ROUND_SHUFFLE_ROW_REDUCE>(
   }
   b.create<scf::YieldOp>(loc, false_yield_values);
   b.setInsertionPointToEnd(parallel_op.getBody());
-  auto acc_iter = if_lane_id_inbound.results().begin();
+  auto acc_iter = if_lane_id_inbound.getResults().begin();
   emitSecondRoundShuffle(b, loc, row_reduction_ops, acc_iter, thread_id_is_zero,
                          row_ids, vector_size, getThreadPerBlock(dominant_op));
 
@@ -1750,9 +1750,9 @@ LogicalResult lowerWithScheduleColReductionBlockTileSchedule(
   // block_row_index = m / num_block_col;
   // block_col_index = m % num_block_col;
   Value local_row_index = b.create<arith::DivUIOp>(loc, var_n, var_tile_w);
-  Value local_col_index = b.create<UnsignedRemIOp>(loc, var_n, var_tile_w);
+  Value local_col_index = b.create<arith::RemUIOp>(loc, var_n, var_tile_w);
   Value block_row_index = b.create<arith::DivUIOp>(loc, var_m, num_block_col);
-  Value block_col_index = b.create<UnsignedRemIOp>(loc, var_m, num_block_col);
+  Value block_col_index = b.create<arith::RemUIOp>(loc, var_m, num_block_col);
 
   // row_index = block_row_index * var_tile_h + local_row_index;
   // col_index = block_col_index * var_tile_w + local_col_index;
@@ -1900,7 +1900,7 @@ LogicalResult lowerWithScheduleColReductionBlockTileSchedule(
         b.create<memref::LoadOp>(loc, shared_mem_map[root_op], shm_offset);
     Value partial_result = (accum_factory[idx])(shm_op0, shm_op1);
     auto root_element_type = getLhloOpsElementType(root_op);
-    b.create<AtomicRMWOp>(
+    b.create<memref::AtomicRMWOp>(
         loc, root_element_type,
         getAtomicRMWKind(cast<lmhlo::ReduceOp>(root_op).body()), partial_result,
         root_op->getOperand(2), ValueRange({col_index}));

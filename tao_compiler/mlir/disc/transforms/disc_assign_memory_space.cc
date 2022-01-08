@@ -50,7 +50,7 @@ MemRefType copyWithMemorySpace(MLIRContext* ctx, MemRefType type,
                                StringRef memory_space) {
   Attribute memSpace = StringAttr::get(ctx, memory_space);
   return MemRefType::get(type.getShape(), type.getElementType(),
-                         type.getAffineMaps(), memSpace);
+                         type.getLayout(), memSpace);
 }
 
 // return a new memref type with provided memory space if the input type if a

@@ -59,7 +59,7 @@ LogicalResult ConstantOpConverter::matchAndRewrite(
   if (!elemType.isIndex() && !elemType.isa<IntegerType>()) return failure();
 
   Location loc = op.getLoc();
-  DenseElementsAttr attr = op.value().cast<DenseElementsAttr>();
+  DenseElementsAttr attr = op.getValue().cast<DenseElementsAttr>();
   MemRefType bufferType = MemRefType::get({resultType.getShape()}, elemType);
   Value result = rewriter.create<memref::AllocOp>(loc, bufferType);
   for (auto&& en : llvm::enumerate(attr.getValues<llvm::APInt>())) {
@@ -123,9 +123,9 @@ void StdBufferizePass::runOnFunction() {
   // Setup target legality.
   MLIRContext& ctx = getContext();
   ConversionTarget target(ctx);
-  BufferizeTypeConverter typeConverter;
+  bufferization::BufferizeTypeConverter typeConverter;
 
-  populateBufferizeMaterializationLegality(target);
+  bufferization::populateBufferizeMaterializationLegality(target);
 
   target.addLegalDialect<memref::MemRefDialect>();
   target.addLegalOp<FuncOp, ModuleOp>();

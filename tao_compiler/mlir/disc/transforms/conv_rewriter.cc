@@ -152,8 +152,7 @@ struct DiscConvRewriterPass
         dimension_numbers.getInputBatchDimension();
     int64_t input_feature_dimension =
         dimension_numbers.getInputFeatureDimension();
-    auto input_spatial_dimensions =
-        ConvertDenseIntAttr(dimension_numbers.getInputSpatialDimensions());
+    auto input_spatial_dimensions = dimension_numbers.getInputSpatialDimensions();
 
     SmallVector<int64_t, 4> dst_format = {0, 1};
     SmallVector<int64_t, 4> src_format = {input_batch_dimension,
@@ -253,11 +252,17 @@ struct DiscConvRewriterPass
 
     op.getOperation()->setAttr(
         "dimension_numbers",
-        mlir::mhlo::ConvDimensionNumbers::get(
-            batch_dim_attr, feature_dim_attr, spatial_dims_attr,
-            kernel_input_feature_dim_attr, kernel_output_feature_dim_attr,
-            spatial_dims_attr, batch_dim_attr, feature_dim_attr,
-            spatial_dims_attr, b.getContext()));
+        mlir::mhlo::ConvDimensionNumbersAttr::get(
+            b.getContext(),
+            /*inputBatchDimension*/0,
+            /*inputFeatureDimension*/1,
+            /*inputSpatialDimensions*/spatial_dims,
+            /*kernelInputFeatureDimension*/1,
+            /*kernelOutputFeatureDimension*/0,
+            /*kernelSpatialDimensions*/spatial_dims,
+            /*outputBatchDimension*/0,
+            /*outputFeatureDimension*/1,
+            /*outputSpatialDimensions*/spatial_dims));
   }
 
   void RewriteOp(mhlo::DynamicConvOp op) {

@@ -62,7 +62,7 @@ struct DiscGpuConvPaddingLegalizationPass
   bool IsLegalConstantPadding(mhlo::DynamicConvOp op) {
     DenseIntElementsAttr dense_elem_attr;
     if (matchPattern(padding, m_Constant(&dense_elem_attr))) {
-      auto int_values = dense_elem_attr.getIntValues();
+      auto int_values = dense_elem_attr.getValues<APInt>();
       auto it = int_values.begin();
       for (int i = 0; i < num_spatial_dims; ++i) {
         assert(it != int_values.end());

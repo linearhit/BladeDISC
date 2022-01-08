@@ -262,7 +262,7 @@ class GpuKernelToBlobPass
     }
 
     llvmModule->setModuleIdentifier("acme");
-    llvmModule->setDataLayout(xla::gpu::nvptx::kDataLayout);
+    llvmModule->setDataLayout(xla::gpu::nvptx::DataLayout());
 
     xla::HloModuleConfig config;
     xla::DebugOptions options = xla::GetDebugOptionsFromFlags();

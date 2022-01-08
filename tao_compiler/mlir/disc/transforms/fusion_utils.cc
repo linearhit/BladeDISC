@@ -1081,12 +1081,13 @@ void dumpTilePlan(DenseMap<Value, TileInfo>& tilePlan) {
 }
 
 void StitchCPUAnalysis::dumpParallelPlan() {
-  for (auto& en : parallelPlan_) {
+  for (const auto& en : parallelPlan_) {
     llvm::dbgs() << " pair@" << en.second.size() << ":";
     llvm::dbgs() << "  value: " << en.first << "\n";
     for (const auto& en2 : llvm::enumerate(en.second)) {
       llvm::dbgs() << "  parallel info #" << en2.index() << ": ";
-      auto& info = parallelInfoStore_[en2.value()];
+      int test = en2.value();
+      auto& info = parallelInfoStore_[test];
       llvm::dbgs() << "id@prevId: " << info.id << "@" << info.producerId << " ";
       for (auto& innerEn : info.indices) {
         llvm::dbgs() << innerEn.first << " : "
