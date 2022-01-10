@@ -29,8 +29,7 @@ namespace disc_ral {
 Value emitNumElementsComputation(OpBuilder& b, Location loc, Value memref) {
   int rank = memref.getType().cast<MemRefType>().getRank();
   Value num_elements;
-  num_elements = b.create<mlir::ConstantOp>(
-      loc, b.getIndexType(), b.getIntegerAttr(b.getIndexType(), 1));
+  num_elements = b.create<arith::ConstantIndexOp>(loc, 1);
   for (int r = 0; r < rank; ++r) {
     auto dim_size = b.create<memref::DimOp>(loc, memref, r);
     num_elements = b.create<arith::MulIOp>(loc, num_elements, dim_size);
@@ -56,8 +55,7 @@ SmallVector<Value> getShapeValues(OpBuilder* b, Value memref) {
     if (shape[i] == ShapedType::kDynamicSize) {
       result.push_back(b->create<DimOp>(loc, memref, i));
     } else {
-      result.push_back(b->create<ConstantOp>(
-          loc, b->getIntegerAttr(b->getIndexType(), shape[i])));
+      result.push_back(b->create<arith::ConstantIndexOp>(loc, shape[i]));
     }
   }
   return result;
@@ -91,8 +89,7 @@ Value getDimSizeValue(OpBuilder* b, Value memref, int dim) {
   if (dim_size == ShapedType::kDynamicSize) {
     return b->create<DimOp>(loc, memref, dim);
   } else {
-    return b->create<ConstantOp>(
-        loc, b->getIntegerAttr(b->getIndexType(), dim_size));
+    return b->create<arith::ConstantIndexOp>(loc, dim_size);
   }
 }
 
@@ -288,8 +285,7 @@ std::pair<ParallelOp, ParallelOp> tileParallelLoop(ParallelOp op,
     b.setInsertionPointToStart(innerLoop.getBody());
     // Insert in-bound check
     Value inbound =
-        b.create<ConstantOp>(op.getLoc(), b.getIntegerType(1),
-                             b.getIntegerAttr(b.getIntegerType(1), 1));
+        b.create<arith::ConstantIntOp>(op.getLoc(), 1, /*bitWidth*/1);
     for (auto dim :
          llvm::zip(outerLoop.getUpperBound(), outerLoop.getInductionVars(),
                    innerLoop.getInductionVars(), innerLoop.getStep())) {

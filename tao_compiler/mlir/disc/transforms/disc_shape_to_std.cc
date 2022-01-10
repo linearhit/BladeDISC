@@ -90,8 +90,7 @@ LogicalResult ShapeOfOpConversion::matchAndRewrite(
   }
 
   // Materialize extent tensor.
-  Value staticExtentTensor = rewriter.create<tensor::FromElementsOp>(
-      loc, rewriter.getIndexType(), extentValues);
+  Value staticExtentTensor = rewriter.create<tensor::FromElementsOp>(loc, extentValues);
   if (staticExtentTensor.getType() != op.getType() &&
       !op.getType().isa<ShapeType>()) {
     staticExtentTensor =
@@ -177,8 +176,7 @@ LogicalResult BroadcastOpConverter::matchAndRewrite(
   }
 
   // Materialize extent tensor.
-  Value staticExtentTensor = rewriter.create<tensor::FromElementsOp>(
-      loc, rewriter.getIndexType(), extentValues);
+  Value staticExtentTensor = rewriter.create<tensor::FromElementsOp>(loc, extentValues);
 
   if (staticExtentTensor.getType() != op.getType() &&
       !op.getType().isa<ShapeType>()) {
@@ -230,10 +228,8 @@ LogicalResult SplitAtOpConversion::matchAndRewrite(
   }
 
   // Materialize extent tensor.
-  Value headExtentTensor = rewriter.create<tensor::FromElementsOp>(
-      loc, rewriter.getIndexType(), headExtentValues);
-  Value tailExtentTensor = rewriter.create<tensor::FromElementsOp>(
-      loc, rewriter.getIndexType(), tailExtentValues);
+  Value headExtentTensor = rewriter.create<tensor::FromElementsOp>(loc, headExtentValues);
+  Value tailExtentTensor = rewriter.create<tensor::FromElementsOp>(loc, tailExtentValues);
 
   rewriter.replaceOp(op, {headExtentTensor, tailExtentTensor});
   return success();
@@ -295,8 +291,7 @@ LogicalResult ConcatOpConversion::matchAndRewrite(
   }
 
   // Materialize extent tensor.
-  Value extentTensor = rewriter.create<tensor::FromElementsOp>(
-      op.getLoc(), rewriter.getIndexType(), extentValues);
+  Value extentTensor = rewriter.create<tensor::FromElementsOp>(op.getLoc(), extentValues);
 
   rewriter.replaceOp(op, {extentTensor});
   return success();
@@ -407,7 +402,9 @@ void ConvertShapeToStandardPass::runOnFunction() {
   // Setup target legality.
   MLIRContext& ctx = getContext();
   ConversionTarget target(ctx);
-  target.addLegalDialect<StandardOpsDialect, tensor::TensorDialect>();
+  target.addLegalDialect<arith::ArithmeticDialect,
+                         StandardOpsDialect,
+                         tensor::TensorDialect>();
   target.addLegalOp<FuncOp, ModuleOp>();
 
   // Setup conversion patterns.

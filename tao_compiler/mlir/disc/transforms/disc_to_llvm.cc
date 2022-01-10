@@ -16,23 +16,24 @@ limitations under the License.
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "mlir-hlo/Dialect/disc-ral/IR/disc_ral_ops.h"
-#include "mlir/Conversion/GPUCommon/GPUCommonPass.h"    // from @llvm-project
-#include "mlir/Conversion/LLVMCommon/Pattern.h"         // from @llvm-project
-#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"      // from @llvm-project
-#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"  // from @llvm-project
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"  // from @llvm-project
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"  // from @llvm-project
-#include "mlir/Dialect/GPU/GPUDialect.h"                 // from @llvm-project
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"             // from @llvm-project
-#include "mlir/Dialect/LLVMIR/LLVMTypes.h"               // from @llvm-project
-#include "mlir/Dialect/Math/IR/Math.h"                   // from @llvm-project
-#include "mlir/Dialect/StandardOps/IR/Ops.h"             // from @llvm-project
-#include "mlir/Dialect/StandardOps/Transforms/Passes.h"  // from @llvm-project
-#include "mlir/IR/Attributes.h"                          // from @llvm-project
-#include "mlir/IR/BuiltinOps.h"                          // from @llvm-project
-#include "mlir/IR/BuiltinTypes.h"                        // from @llvm-project
-#include "mlir/IR/Operation.h"                           // from @llvm-project
-#include "mlir/Transforms/DialectConversion.h"           // from @llvm-project
+#include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
+#include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
+#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
+#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
+#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/StandardOps/Transforms/Passes.h"
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "tensorflow/compiler/mlir/disc/IR/lhlo_disc_ops.h"
 #include "tensorflow/compiler/mlir/disc/transforms/PassDetail.h"
 #include "tensorflow/compiler/mlir/disc/transforms/rewriters.h"
@@ -989,6 +990,8 @@ class DiscToLLVMPass : public DiscToLLVMPassBase<DiscToLLVMPass> {
 
     // Populate patterns.
     RewritePatternSet patterns(&getContext());
+    mlir::arith::populateArithmeticToLLVMConversionPatterns(type_converter,
+                                                            patterns);
     populateStdExpandOpsPatterns(patterns);
     populateStdToLLVMConversionPatterns(type_converter, patterns);
     populateMemRefToLLVMConversionPatterns(type_converter, patterns);
@@ -999,8 +1002,8 @@ class DiscToLLVMPass : public DiscToLLVMPassBase<DiscToLLVMPass> {
     // Set target.
     ConversionTarget target(*ctx);
     target.addLegalDialect<LLVM::LLVMDialect>();
-    target.addIllegalDialect<StandardOpsDialect, gpu::GPUDialect,
-                             disc_ral::RalDialect, math::MathDialect>();
+    target.addIllegalDialect<StandardOpsDialect, arith::ArithmeticDialect,
+                             gpu::GPUDialect, disc_ral::RalDialect, math::MathDialect>();
     // Mark modules as legal.
     target.addLegalOp<ModuleOp, gpu::GPUModuleOp>();
     // Do not look into gpu modules, only consider host-side.

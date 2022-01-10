@@ -48,6 +48,8 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/disc/transforms/disc_map_hlo_to_lhlo_op.h"
 #include "tensorflow/compiler/mlir/disc/transforms/rewriters.h"
 
+#include "llvm/Support/Debug.h"
+
 namespace mlir {
 namespace mhlo_disc {
 namespace {
@@ -191,6 +193,7 @@ struct TieShapeOpConverter : public BaseOpConversion<TieShapeOp> {
   LogicalResult matchAndRewrite(
       TieShapeOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
+    llvm::dbgs() << "TieShapeOpConverter\n";
     Location loc = op.getLoc();
     auto operands = adaptor.getOperands();
     Value memref = operands[0];
@@ -202,6 +205,7 @@ struct TieShapeOpConverter : public BaseOpConversion<TieShapeOp> {
     Value castedValue = disc_ral::CastMemRefTo(rewriter, loc, memref, memrefTy,
                                                operands.drop_front());
     rewriter.replaceOp(op, {castedValue});
+    llvm::dbgs() << "TieShapeOpConverter done\n";
     return success();
   }
 };
@@ -221,11 +225,11 @@ struct HloLegalizeToLhlo : public HloLegalizeToLhloPassBase<HloLegalizeToLhlo> {
     auto& context = getContext();
     OwningRewritePatternList patterns(&context);
     ConversionTarget target(context);
-    target.addLegalDialect<lmhlo_disc::LmhloDiscDialect>();
-    target.addLegalDialect<StandardOpsDialect>();
-    target.addLegalDialect<memref::MemRefDialect>();
-    target.addLegalDialect<shape::ShapeDialect>();
-    target.addLegalDialect<tensor::TensorDialect>();
+    target.addLegalDialect<
+        arith::ArithmeticDialect, lmhlo_disc::LmhloDiscDialect,
+        bufferization::BufferizationDialect, StandardOpsDialect,
+        memref::MemRefDialect, shape::ShapeDialect,
+        tensor::TensorDialect>();
     target.addIllegalDialect<mhlo_disc::MhloDiscDialect>();
     target.addIllegalOp<disc_shape::TieShapeOp>();
 

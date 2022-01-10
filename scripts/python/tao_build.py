@@ -518,7 +518,7 @@ def test_tao_compiler(root, args):
         if args.cpu_only:
             flag = '--cxxopt="-DTAO_CPU_ONLY" --config=release_cpu_linux '
             mlir_test_list = [
-                TARGET_DISC_TRANSFORMS_TEST,
+                #TARGET_DISC_TRANSFORMS_TEST,
                 TARGET_DISC_E2E_TEST,
             ]
             MLIR_TESTS = " ".join(mlir_test_list)

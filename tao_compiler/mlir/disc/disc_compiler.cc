@@ -40,6 +40,7 @@ limitations under the License.
 #include "mlir/Conversion/ShapeToStandard/ShapeToStandard.h"  // from @llvm-project
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -259,9 +260,10 @@ LogicalResult LowerHLOToLLVM(ModuleOp m, const DISCLoweringOptions& options) {
   pm.addNestedPass<FuncOp>(lmhlo::createLegalizeToTensorOpPass());
   pm.addNestedPass<FuncOp>(createCanonicalizerPass());
 
-  pm.addNestedPass<FuncOp>(createTensorBufferizePass());
-  // bufferize std.constant ops that have tensor types.
+  // bufferize constant ops & index_cast that have tensor types.
   pm.addNestedPass<FuncOp>(disc_ral::createDiscStdBufferizePass());
+  pm.addNestedPass<FuncOp>(arith::createArithmeticBufferizePass());
+  pm.addNestedPass<FuncOp>(createTensorBufferizePass());
   pm.addNestedPass<FuncOp>(bufferization::createFinalizingBufferizePass());
   pm.addNestedPass<FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<FuncOp>(createCSEPass());
@@ -311,6 +313,7 @@ LogicalResult LowerHLOToLLVM(ModuleOp m, const DISCLoweringOptions& options) {
   pm.addNestedPass<FuncOp>(
       disc_ral::createDiscLhloLegalizeRootsToParallelLoopsPass());
   // Converts `atomic_rmw` to `generic_atomic_rmw` when necessary to use CAS.
+  pm.addNestedPass<mlir::FuncOp>(arith::createArithmeticExpandOpsPass());
   pm.addNestedPass<FuncOp>(createStdExpandOpsPass());
   // Converts `atomic_rmw` to `generic_atomic_rmw` that is unhandled in
   // `StdExpandOps` pass.

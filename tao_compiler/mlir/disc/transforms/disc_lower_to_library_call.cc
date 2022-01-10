@@ -229,12 +229,10 @@ struct DotGeneralOpConvertor : public OpRewritePattern<DotGeneralOp> {
     bool tp_lhs = (lhs_contracting_dims[0] == (rank - 2));
     bool tp_rhs = (rhs_contracting_dims[0] == (rank - 1));
 
-    newOperands.push_back(rewriter.create<ConstantOp>(
-        op.getLoc(), rewriter.getIntegerType(1),
-        rewriter.getIntegerAttr(rewriter.getIntegerType(1), tp_lhs)));
-    newOperands.push_back(rewriter.create<ConstantOp>(
-        op.getLoc(), rewriter.getIntegerType(1),
-        rewriter.getIntegerAttr(rewriter.getIntegerType(1), tp_rhs)));
+    newOperands.push_back(rewriter.create<arith::ConstantIntOp>(
+        op.getLoc(), tp_lhs, /*bitWidth*/1));
+    newOperands.push_back(rewriter.create<arith::ConstantIntOp>(
+        op.getLoc(), tp_rhs, /*bitWidth*/1));
 
     bool on_gpu = placement_utils::isGpuMemRef(op->getOperand(2));
     rewriter.replaceOpWithNewOp<DispatchOp>(op, llvm::None, ctx, newOperands,

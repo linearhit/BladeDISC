@@ -140,13 +140,13 @@ struct DiscGpuConvPaddingLegalizationPass
       padding_high.push_back(remaining_high_value);
     }
     Value padding_low_tensor = b.create<tensor::FromElementsOp>(
-        loc, shape_scalar_type, ArrayRef<Value>({padding_low}));
+        loc, ArrayRef<Value>({padding_low}));
     Value padding_high_tensor = b.create<tensor::FromElementsOp>(
-        loc, shape_scalar_type, ArrayRef<Value>({padding_high}));
+        loc, ArrayRef<Value>({padding_high}));
     Value padding_interior_tensor = b.create<tensor::FromElementsOp>(
-        loc, shape_scalar_type, ArrayRef<Value>({padding_interior}));
+        loc, ArrayRef<Value>({padding_interior}));
     Value new_padding_tensor_for_conv = b.create<tensor::FromElementsOp>(
-        loc, shape_scalar_type, ArrayRef<Value>({new_padding_for_conv}));
+        loc, ArrayRef<Value>({new_padding_for_conv}));
 
     SmallVector<int64_t, 4> padded_input_shape;
     padded_input_shape.push_back(input_tp.getShape()[0]);

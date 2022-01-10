@@ -87,7 +87,7 @@ LogicalResult GenerateOpConverter::matchAndRewrite(
 
   // Materialize extent tensor.
   Value staticExtentTensor = rewriter.create<tensor::FromElementsOp>(
-      loc, resultTy.getElementType(), extentValues);
+      loc, extentValues);
   rewriter.replaceOp(op, ValueRange{staticExtentTensor});
 
   return success();

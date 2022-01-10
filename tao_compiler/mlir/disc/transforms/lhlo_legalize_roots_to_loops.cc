@@ -84,7 +84,6 @@ LogicalResult elemwiseLowerHelper(
     auto multidim_index = calcMultiDimIndex(&b, loc, linear_index, memref);
     multidim_index_vector[i] = std::move(multidim_index);
   }
-  // TODO(disc): Replace with memref.Delinearize
   SmallVector<SmallVector<Value, 4>> operand_values_vector(vector_size);
   for (Value operand_memref : op->getOperands().drop_back()) {
     for (int64_t i = 0; i < vector_size; i++) {
@@ -892,8 +891,7 @@ Value emitWidthAdaptShuffle(OpBuilder& b, Location loc, Value value,
     // using std.bitcast instead of LLVM dialect.
     Value x = b.create<mlir::LLVM::BitcastOp>(loc, vec_ty, value);
     for (int64_t sgt = 0; sgt < segments; ++sgt) {
-      Value sgt_idx = b.create<ConstantOp>(
-          loc, b.getIntegerAttr(b.getIntegerType(32), sgt));
+      Value sgt_idx = b.create<arith::ConstantIntOp>(loc, sgt, /*bitwidth=*/32);
       Value insert_val =
           b.create<mlir::LLVM::ExtractElementOp>(loc, x, sgt_idx);
       insert_val = b.create<gpu::ShuffleOp>(loc, type, insert_val, offset,

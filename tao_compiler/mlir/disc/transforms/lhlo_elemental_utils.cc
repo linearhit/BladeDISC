@@ -258,8 +258,7 @@ Value elementalLowerImplForBroadcastInDimOps(OpBuilder* b, Location loc,
           operand_memref.getType().cast<MemRefType>().getShape()[input_dim];
       if (static_dim_size == 1) {
         // we know this dim is to be broadcasted at compile time
-        auto zero = b->create<ConstantOp>(
-            loc, b->getIndexType(), b->getIntegerAttr(b->getIndexType(), 0));
+        auto zero = b->create<arith::ConstantIndexOp>(loc, 0);
         input_index.push_back(zero);
       } else if (static_dim_size == ShapedType::kDynamicSize) {
         // we are not sure if this dim is to be broadcasted at compile time.
@@ -267,8 +266,7 @@ Value elementalLowerImplForBroadcastInDimOps(OpBuilder* b, Location loc,
         // value and output value are the same SSA value.
         auto dim_size = b->create<DimOp>(loc, operand_memref, input_dim);
         auto output_dim_size = b->create<DimOp>(loc, result_memref, dim);
-        auto zero = b->create<ConstantOp>(
-            loc, b->getIndexType(), b->getIntegerAttr(b->getIndexType(), 0));
+        auto zero = b->create<arith::ConstantIndexOp>(loc, 0);
         auto dim_size_is_equal = b->create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                                    dim_size, output_dim_size);
         input_index.push_back(b->create<mlir::SelectOp>(
@@ -698,13 +696,14 @@ Value elementalLower<lmhlo::ConcatenateOp>(OpBuilder* b, Location loc,
   Value zero_element;
   if (result_elem_type.isF16() || result_elem_type.isF32() ||
       result_elem_type.isF64()) {
-    zero_element = b->create<ConstantOp>(loc, result_elem_type,
-                                         b->getFloatAttr(result_elem_type, 0));
+    auto float_result_elem_type = result_elem_type.cast<FloatType>();
+    zero_element = b->create<arith::ConstantFloatOp>(loc,
+        APFloat::getZero(float_result_elem_type.getFloatSemantics()),
+        float_result_elem_type);
   } else if (result_elem_type.isSignlessInteger() ||
              result_elem_type.isSignedInteger() ||
              result_elem_type.isUnsignedInteger()) {
-    zero_element = b->create<ConstantOp>(
-        loc, result_elem_type, b->getIntegerAttr(result_elem_type, 0));
+    zero_element = b->create<arith::ConstantIntOp>(loc, 0, result_elem_type);
   } else {
     assert(false && "unexpected concatenate element type");
   }
@@ -801,13 +800,13 @@ Value elementalLowerIota(OpBuilder* b, const Location& loc, Operation* op,
   auto result_element_ty = result_ty.getElementType();
   if (result_ty.getRank() == 0) {
     if (result_element_ty.dyn_cast<IntegerType>()) {
-      return b->create<ConstantOp>(loc, result_element_ty,
-                                   b->getIntegerAttr(result_element_ty, 0));
+      return b->create<arith::ConstantIntOp>(loc, 0, result_element_ty);
     } else if (result_element_ty.dyn_cast<IndexType>()) {
-      return b->create<ConstantOp>(loc, result_element_ty, b->getIndexAttr(0));
+      return b->create<arith::ConstantIndexOp>(loc, 0);
     } else if (result_element_ty.dyn_cast<FloatType>()) {
-      return b->create<ConstantOp>(loc, result_element_ty,
-                                   b->getFloatAttr(result_element_ty, 0));
+      auto float_result_element_ty = result_element_ty.cast<FloatType>();
+      return b->create<arith::ConstantFloatOp>(loc,
+        APFloat::getZero(float_result_element_ty.getFloatSemantics()), float_result_element_ty);
     } else {
       op->emitError("element_type of Iota/DynamicIotaOp not implemented");
       return Value(nullptr);
@@ -932,6 +931,7 @@ Value elementalLower<lmhlo::IsFiniteOp>(OpBuilder* b, Location loc,
   Value operand_memref = op->getOperand(0);
   auto tp = op->getOperand(0).getType().dyn_cast<ShapedType>();
   auto elem_tp = tp.getElementType();
+  assert(elem_tp.isa<FloatType>());
   int result_rank = output_index.size();
 
   auto maybe_load_from_cache = [&](Value operand_memref) -> Value {
@@ -944,8 +944,9 @@ Value elementalLower<lmhlo::IsFiniteOp>(OpBuilder* b, Location loc,
 
   Value operand = maybe_load_from_cache(operand_memref);
   auto abs_operand = b->create<math::AbsOp>(loc, operand);
-  auto INF = b->create<ConstantOp>(
-      loc, elem_tp, b->getF32FloatAttr(std::numeric_limits<float>::infinity()));
+  auto float_elem_tp = elem_tp.cast<FloatType>();
+  auto INF = b->create<arith::ConstantFloatOp>(
+      loc, APFloat::getInf(float_elem_tp.getFloatSemantics()), float_elem_tp);
   return b->create<arith::CmpFOp>(loc, arith::CmpFPredicate::ONE, abs_operand, INF);
 }
 
@@ -1016,10 +1017,8 @@ memref::ReinterpretCastOp createMemRef1DReinterpretCast(OpBuilder& b,
     return createMemRef1DReinterpretCastWithStaticShape(b, loc, memref);
   }
   Value size = emitNumElementsComputation(b, loc, memref);
-  Value stride = b.create<mlir::ConstantOp>(
-      loc, b.getIndexType(), b.getIntegerAttr(b.getIndexType(), 1));
-  Value zero = b.create<mlir::ConstantOp>(
-      loc, b.getIndexType(), b.getIntegerAttr(b.getIndexType(), 0));
+  Value stride = b.create<arith::ConstantIndexOp>(loc, 1);
+  Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
   auto memref_1d_type =
       MemRefType::get({MemRefType::kDynamicSize}, memref_ty.getElementType(),
                       memref_ty.getLayout(), memref_ty.getMemorySpace());

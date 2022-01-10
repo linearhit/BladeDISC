@@ -23,6 +23,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/FormatVariadic.h"
+#include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
@@ -131,12 +132,17 @@ struct DiscLowerGpuOpsToNVVMOpsPass
     llvmPatterns.add<GenericAtomicRMWOpLoweringWithBitcast>(
         converter, /* PatternBenefit */ 3);
     llvmPatterns.add<RemoveUselessUnrealizedConversionCastOp>(converter);
+    mlir::arith::populateArithmeticToLLVMConversionPatterns(converter,
+                                                            llvmPatterns);
     populateStdToLLVMConversionPatterns(converter, llvmPatterns);
     populateMemRefToLLVMConversionPatterns(converter, llvmPatterns);
     populateGpuToNVVMConversionPatterns(converter, llvmPatterns);
     populateGpuWMMAToNVVMConversionPatterns(converter, llvmPatterns);
     LLVMConversionTarget target(getContext());
     configureGpuToNVVMConversionLegality(target);
+    target.addLegalDialect<LLVM::LLVMDialect>();
+    target.addIllegalDialect<StandardOpsDialect, arith::ArithmeticDialect,
+                             math::MathDialect>();
     target.addIllegalOp<UnrealizedConversionCastOp>();
     if (failed(applyPartialConversion(m, target, std::move(llvmPatterns))))
       signalPassFailure();

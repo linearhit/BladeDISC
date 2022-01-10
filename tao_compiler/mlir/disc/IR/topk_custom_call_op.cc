@@ -111,8 +111,7 @@ LogicalResult reifyReturnTypeShapesImpl<TopKBackendConfig>(
       shape_values.push_back(dim);
     }
   }
-  Value result_shape = builder.create<tensor::FromElementsOp>(
-      loc, builder.getIndexType(), shape_values);
+  Value result_shape = builder.create<tensor::FromElementsOp>(loc, shape_values);
   // Same shapes for two outputs
   reifiedReturnShapes.push_back(result_shape);
   reifiedReturnShapes.push_back(result_shape);

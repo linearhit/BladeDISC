@@ -73,8 +73,7 @@ LogicalResult reifyReturnTypeShapesImpl<RngUniformBackendConfig>(
     dim_size = disc_ral::mayConvertToIndexType(dim_size, &builder, loc);
     shape_values.push_back(dim_size);
   }
-  Value result_shape = builder.create<tensor::FromElementsOp>(
-      loc, builder.getIndexType(), shape_values);
+  Value result_shape = builder.create<tensor::FromElementsOp>(loc, shape_values);
   reifiedReturnShapes.push_back(result_shape);
   return success();
 }

@@ -38,17 +38,17 @@ using mhlo::ConstOp;
 
 namespace {
 
-class ConstantOpConverter : public OpConversionPattern<ConstantOp> {
+class ConstantOpConverter : public OpConversionPattern<arith::ConstantOp> {
  public:
-  using OpConversionPattern<ConstantOp>::OpConversionPattern;
+  using OpConversionPattern<arith::ConstantOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      ConstantOp op, OpAdaptor adaptor,
+      arith::ConstantOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override;
 };
 
 LogicalResult ConstantOpConverter::matchAndRewrite(
-    ConstantOp op, OpAdaptor adaptor,
+    arith::ConstantOp op, OpAdaptor adaptor,
     ConversionPatternRewriter& rewriter) const {
   auto resultType = op.getType().dyn_cast<RankedTensorType>();
   if (!resultType) return failure();
@@ -129,7 +129,7 @@ void StdBufferizePass::runOnFunction() {
 
   target.addLegalDialect<memref::MemRefDialect>();
   target.addLegalOp<FuncOp, ModuleOp>();
-  target.addDynamicallyLegalDialect<StandardOpsDialect>(
+  target.addDynamicallyLegalDialect<StandardOpsDialect, arith::ArithmeticDialect>(
       [&](Operation* op) { return typeConverter.isLegal(op); });
 
   // Setup conversion patterns.

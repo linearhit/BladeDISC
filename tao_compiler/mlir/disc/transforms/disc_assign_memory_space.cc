@@ -563,7 +563,7 @@ LogicalResult DiscAssignMemorySpacePass::applyOperationAssignment(
   }
 
   return op->emitOpError()
-         << "failed to replaced the result type of unsupported op";
+         << "failed to replace the result type of an unsupported op";
 }
 
 }  // namespace
