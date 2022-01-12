@@ -44,10 +44,12 @@ struct UnhandledAtomicRMWConverter : public OpRewritePattern<memref::AtomicRMWOp
                                 PatternRewriter& rewriter) const override {
     // Currently, we only deal with atomic mulf operation. More operations can
     // be supported easily here.
+    llvm::dbgs() << "UnhandledAtomicRMWConverter\n";
     if (op.kind() != arith::AtomicRMWKind::mulf) {
       return failure();
     }
 
+    llvm::dbgs() << "UnhandledAtomicRMWConverter_0\n";
     Location loc = op.getLoc();
     GenericAtomicRMWOp genericOp =
         rewriter.create<GenericAtomicRMWOp>(loc, op.memref(), op.indices());
@@ -60,6 +62,7 @@ struct UnhandledAtomicRMWConverter : public OpRewritePattern<memref::AtomicRMWOp
     bodyBuilder.create<AtomicYieldOp>(loc, reductionOp);
 
     rewriter.replaceOp(op, genericOp.getResult());
+    llvm::dbgs() << "UnhandledAtomicRMWConverter_1\n";
     return success();
   }
 };
@@ -73,14 +76,10 @@ struct UnhandledAtomicRMWConverterPass
     RewritePatternSet patterns(&ctx);
     patterns.add<UnhandledAtomicRMWConverter>(&ctx);
 
-    ConversionTarget target(ctx);
-    target.addLegalDialect<memref::MemRefDialect, StandardOpsDialect>();
-    target.addDynamicallyLegalOp<memref::AtomicRMWOp>(
-        [](memref::AtomicRMWOp op) { return op.kind() != arith::AtomicRMWKind::mulf; });
-
-    if (failed(
-            applyPartialConversion(getFunction(), target, std::move(patterns))))
-      signalPassFailure();
+    if (failed(mlir::applyPatternsAndFoldGreedily(getFunction(),
+                                                  std::move(patterns)))) {
+       signalPassFailure();
+    }
   }
 };
 

@@ -248,6 +248,7 @@ LogicalResult LowerHLOToLLVM(ModuleOp m, const DISCLoweringOptions& options) {
   pm.addPass(createFuncBufferizePass());
   pm.addPass(mhlo_disc::createDiscLegalizeToLhloPass());
   pm.addPass(mhlo::createLegalizeToLhloPass());
+  pm.addNestedPass<FuncOp>(createCanonicalizerPass());
 
   // Convert shape to std. Community ```convert-shape-to-std``` pass
   // lowers `shape.broadcast` using scf ops. However, our pass pipeline
@@ -313,13 +314,13 @@ LogicalResult LowerHLOToLLVM(ModuleOp m, const DISCLoweringOptions& options) {
   pm.addNestedPass<FuncOp>(
       disc_ral::createDiscLhloLegalizeRootsToParallelLoopsPass());
   // Converts `atomic_rmw` to `generic_atomic_rmw` when necessary to use CAS.
-  pm.addNestedPass<mlir::FuncOp>(arith::createArithmeticExpandOpsPass());
   pm.addNestedPass<FuncOp>(createStdExpandOpsPass());
   // Converts `atomic_rmw` to `generic_atomic_rmw` that is unhandled in
   // `StdExpandOps` pass.
   pm.addNestedPass<FuncOp>(
       disc_ral::createDiscUnhandledAtomicRMWConverterPass());
   pm.addNestedPass<FuncOp>(disc_ral::createDiscInputInlineFusionPass());
+  pm.addNestedPass<FuncOp>(arith::createArithmeticExpandOpsPass());
   pm.addNestedPass<FuncOp>(memref::createFoldSubViewOpsPass());
 
   // Flattern multi dim memref accesses to its 1D format to enable more

@@ -29,6 +29,8 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/disc/transforms/PassDetail.h"
 #include "tensorflow/compiler/mlir/disc/transforms/rewriters.h"
 
+#include "llvm/Support/Debug.h"
+
 namespace mlir {
 namespace disc_ral {
 
@@ -49,6 +51,7 @@ class ComputeReshapeShapeOpConverter
 LogicalResult ComputeReshapeShapeOpConverter::matchAndRewrite(
     ComputeReshapeShapeOp op, OpAdaptor adaptor,
     ConversionPatternRewriter& rewriter) const {
+  llvm::dbgs() << "ComputeReshapeShapeOpConverter_0\n";
   Location loc = op.getLoc();
   MLIRContext* ctx = op->getContext();
   auto operands = adaptor.getOperands();
@@ -63,10 +66,11 @@ LogicalResult ComputeReshapeShapeOpConverter::matchAndRewrite(
   Type indexType = rewriter.getIndexType();
 
   if (!targetShapeType.hasStaticShape()) {
-    op.emitError("only static shape value is supported");
+    op.emitError("only static rank is supported");
     return failure();
   }
 
+  llvm::dbgs() << "ComputeReshapeShapeOpConverter_1\n";
   int64_t rank = targetShapeType.getDimSize(0);
 
   // in case there is a negOne in the new target shape values.
@@ -121,6 +125,7 @@ LogicalResult ComputeReshapeShapeOpConverter::matchAndRewrite(
   Value staticExtentTensor = rewriter.create<tensor::FromElementsOp>(loc, extentValues);
   rewriter.replaceOp(op, ValueRange{staticExtentTensor});
 
+  llvm::dbgs() << "ComputeReshapeShapeOpConverter_2\n";
   return success();
 }
 
@@ -133,8 +138,9 @@ void ConvertHloToStandardPass::runOnFunction() {
   // Setup target legality.
   MLIRContext& ctx = getContext();
   ConversionTarget target(ctx);
-  target.addLegalDialect<StandardOpsDialect, tensor::TensorDialect>();
-  target.addLegalOp<FuncOp, ModuleOp>();
+  target.addLegalDialect<StandardOpsDialect, tensor::TensorDialect, arith::ArithmeticDialect>();
+  //target.addLegalOp<FuncOp, ModuleOp>();
+  target.addIllegalOp<ComputeReshapeShapeOp>();
 
   // Setup conversion patterns.
   RewritePatternSet patterns(&ctx);
