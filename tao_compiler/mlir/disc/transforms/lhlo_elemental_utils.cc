@@ -990,7 +990,7 @@ Value elementalLower<lmhlo::ClampOp>(OpBuilder* b, Location loc,
 memref::ReinterpretCastOp createMemRef1DReinterpretCastWithStaticShape(
     OpBuilder& b, Location loc, Value memref) {
   auto memref_ty = memref.getType().cast<MemRefType>();
-  assert(memref_ty.getLayout().getAffineMaps().IsEmpty());
+  assert(memref_ty.getLayout().isIdentity());
   assert(memref_ty.hasStaticShape());
 
   int64_t nElems = 1;
@@ -1012,7 +1012,7 @@ memref::ReinterpretCastOp createMemRef1DReinterpretCast(OpBuilder& b,
                                                         Location loc,
                                                         Value memref) {
   auto memref_ty = memref.getType().cast<MemRefType>();
-  assert(memref_ty.getLayout().getAffineMaps().isEmpty());
+  assert(memref_ty.getLayout().isIdentity());
   if (memref_ty.hasStaticShape()) {
     return createMemRef1DReinterpretCastWithStaticShape(b, loc, memref);
   }

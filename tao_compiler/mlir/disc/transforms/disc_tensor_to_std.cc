@@ -102,9 +102,10 @@ void ConvertTensorToStandardPass::runOnFunction() {
   // Setup target legality.
   MLIRContext& ctx = getContext();
   ConversionTarget target(ctx);
-  target.addLegalDialect<StandardOpsDialect>();
+  target.addLegalDialect<StandardOpsDialect, arith::ArithmeticDialect>();
   target.addLegalOp<FuncOp, ModuleOp>();
   target.addLegalOp<tensor::ExtractOp, tensor::DimOp, tensor::FromElementsOp>();
+  target.addIllegalOp<GenerateOp>();
 
   // Setup conversion patterns.
   RewritePatternSet patterns(&ctx);

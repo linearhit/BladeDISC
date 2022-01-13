@@ -323,7 +323,7 @@ LogicalResult LowerHLOToLLVM(ModuleOp m, const DISCLoweringOptions& options) {
   pm.addNestedPass<FuncOp>(arith::createArithmeticExpandOpsPass());
   pm.addNestedPass<FuncOp>(memref::createFoldSubViewOpsPass());
 
-  // Flattern multi dim memref accesses to its 1D format to enable more
+  // Flatten multi dim memref accesses to its 1D format to enable more
   // opportunities for linearizeOp/delinearizeOp elimination.
   pm.addNestedPass<FuncOp>(disc_ral::createDiscFlattenMemrefAccessPass());
   // Not using community canonicalizer since it will erase single iteration
