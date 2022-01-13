@@ -25,6 +25,7 @@ DiscLaunchOp::DiscLaunchOp(OpKernelConstruction* ctx)
   enable_fallback_ = bridge_opts->tao_launch_enable_fallback;
   verbose_compilation_log_ = bridge_opts->verbose_compilation_log;
   VLOG(1) << "Create DiscLaunchOp, device uuid: [" << DeviceUUIDCtx() << "]";
+  VLOG(0) << "Create DiscLaunchOp, device uuid: [" << DeviceUUIDCtx() << "]";
   mode_ = bridge_opts->tao_launch_async_compilation ? kAsync : kDefault;
   mlir_compile_status_ = Status::OK();
   tick_.reset(new TaoLaunchTick(name()));
@@ -37,10 +38,12 @@ DiscLaunchOp::~DiscLaunchOp() {
 
 void DiscLaunchOp::ComputeAsync(OpKernelContext* ctx,
                                 AsyncOpKernel::DoneCallback done) {
+  VLOG(0) << "DiscLaunchOp::ComputeAsync";
   auto helper = new DoneHelper(done);
   tensorflow::core::ScopedUnref sc(helper);
   bool executed = false;
   auto status = CompileAndRunMlir(ctx, helper, &executed);
+  VLOG(0) << "DiscLaunchOp::ComputeAsync_1";
   if (!status.ok() || !executed) {
     if (!status.ok() && err_msg_print_counter_ < 5) {
       ++err_msg_print_counter_;
@@ -75,6 +78,7 @@ Status DiscLaunchOp::CompileAndRunMlir(OpKernelContext* ctx, DoneHelper* helper,
   TaoProfileStat* stat;
   Executable* mlir_executable = nullptr;
 
+  VLOG(0) << "CompileAndRunMlir: " << name();
   VLOG(1) << "Run MlirExecutable for node: " << name();
   if (VLOG_IS_ON(1)) {
     VLOG(0) << "Constant (" << ConstantsAttr().size() << "):";
@@ -90,11 +94,14 @@ Status DiscLaunchOp::CompileAndRunMlir(OpKernelContext* ctx, DoneHelper* helper,
     return Status::OK();
   }
 
+  VLOG(0) << "CompileAndRunMlir_0: " << name();
   auto call_info = &(helper->call_info);
+  VLOG(0) << "CompileAndRunMlir_1: " << name();
   TF_RETURN_IF_ERROR(
       CompileToLocalExecutable(ctx, mlir_function_, /* is_mlir */ true,
                                call_info, &variables, &mlir_executable, &stat));
 
+  VLOG(0) << "CompileAndRunMlir_2: " << name();
   if (mlir_executable == nullptr) {
     return Status::OK();
   }
