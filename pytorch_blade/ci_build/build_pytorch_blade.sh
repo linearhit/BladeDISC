@@ -36,11 +36,12 @@ export TORCH_BLADE_BUILD_WITH_CUDA_SUPPORT=ON
 function ci_build() {
     echo "DO TORCH_BLADE CI_BUILD"
     # set TORCH_BLADE_CI_BUILD_TORCH_VERSION default to 1.7.1+cu110
-    TORCH_BLADE_CI_BUILD_TORCH_VERSION=${TORCH_BLADE_CI_BUILD_TORCH_VERSION:-1.7.1+cu110}
+    TORCH_BLADE_CI_BUILD_TORCH_VERSION=${TORCH_BLADE_CI_BUILD_TORCH_VERSION:-1.6.0+cu100}
     requirements=requirements-dev-${TORCH_BLADE_CI_BUILD_TORCH_VERSION}.txt
-    python3 -m pip install --upgrade pip
-    python3 -m pip install cmake ninja virtualenv -r ${requirements}
-    rm -rf build && python3 setup.py develop;
+    #python3 -m pip install --upgrade pip
+    #python3 -m pip install cmake ninja virtualenv -r ${requirements}
+    #rm -rf build && python3 setup.py develop;
+    python3 setup.py develop;
     # The following are UNIT TESTS
     export TORCH_BLADE_DEBUG_LOG=ON
     /bin/bash cpp_test.sh -V 2>&1 | tee -a build/cpp_test.out;

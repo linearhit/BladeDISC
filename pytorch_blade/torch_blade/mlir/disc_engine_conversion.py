@@ -69,6 +69,7 @@ def _compile_torchscript(graph):
             env['TAO_MLIR_ENABLE_AMP'] = str(cfg.enable_mlir_amp).lower()
             # RUN: disc_compiler_main input_mlir_file.mlir output_file.so
             # redirect stdout to devnull
+            shutil.copyfile(inp_mlir_file.name, os.path.join(mlir_dump_dir, f"dump.{time_str}.mlir"))
             subprocess.check_call(
                 [mhlo_compile_cmd, inp_mlir_file.name, out_file_name, "--multi-cc-support"],
                 stdout=devnull,
