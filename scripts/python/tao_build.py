@@ -399,8 +399,8 @@ def build_tao_compiler(root, args):
         if args.enable_mkldnn:
             flag += ' --cxxopt="-DTAO_ENABLE_MKLDNN" --define is_mkldnn=true'
 
-        bazel_build(TARGET_TAO_COMPILER_MAIN, flag=flag)
-        bazel_build(TARGET_DISC_OPT, flag=flag)
+        #bazel_build(TARGET_TAO_COMPILER_MAIN, flag=flag)
+        #bazel_build(TARGET_DISC_OPT, flag=flag)
         bazel_build(TARGET_DISC_REPLAY, flag=flag)
         execute(
             "cp -f -p {}/tao/third_party/ptxas/10.2/ptxas ./bazel-bin/tensorflow/compiler/decoupling/".format(

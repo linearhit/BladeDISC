@@ -61,6 +61,7 @@ tensorflow::Status ReplayRecord::Load() {
   TF_RETURN_IF_ERROR(
       ReadBinaryProto(tensorflow::Env::Default(), program_fname_, &program_));
   for (size_t i = 0; i < program_.args_size(); ++i) {
+    // TODO: support cpu replay
     auto placement = DeriveInputPlacement(program_.args(i), "gpu");
     tensorflow::Tensor t;
     std::string tensor_fname =
@@ -68,8 +69,12 @@ tensorflow::Status ReplayRecord::Load() {
     TF_CHECK_OK(env->FileExists(tensor_fname));
     TF_RETURN_IF_ERROR(ReadTensorFromPb(tensor_fname, &t));
 
-    placements_.push_back(placement);
+    input_placements_.push_back(placement);
     tensors_.push_back(t);
+  }
+  size_t num_outputs = program_.options().output_placements_size();
+  for (size_t i = 0; i < num_outputs; ++i) {
+    output_placements_.push_back(program_.options().output_placements(i));
   }
   return tensorflow::Status::OK();
 }

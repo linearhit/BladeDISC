@@ -49,8 +49,9 @@ tensorflow::Status RealMain(int argc, char** argv) {
   TF_RETURN_IF_ERROR(disc.Compile(record->Program(), result));
 
   for (int i = 0; i < warmup_iters; ++i) {
-    TF_RETURN_IF_ERROR(
-        disc.Run(result, record->Tensors(), record->Placements()));
+    TF_RETURN_IF_ERROR(disc.Run(result, record->Tensors(),
+                                record->InputPlacements(),
+                                record->OutputPlacements()));
   }
   VLOG(0) << "Finish warmup with " << warmup_iters << " iterations";
 
@@ -59,7 +60,9 @@ tensorflow::Status RealMain(int argc, char** argv) {
 #endif
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
-  TF_RETURN_IF_ERROR(disc.Run(result, record->Tensors(), record->Placements()));
+  TF_RETURN_IF_ERROR(disc.Run(result, record->Tensors(),
+                              record->InputPlacements(),
+                              record->OutputPlacements()));
   VLOG(0) << "Replay toolkit execution uses: "
           << std::chrono::duration_cast<std::chrono::microseconds>(
                  std::chrono::steady_clock::now() - begin)

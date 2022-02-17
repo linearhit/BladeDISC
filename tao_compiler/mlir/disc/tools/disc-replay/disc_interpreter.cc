@@ -13,10 +13,28 @@
 
 #include <dlfcn.h>
 
+#include <iostream>
+
 namespace replay {
 
 #if GOOGLE_CUDA
 using ::stream_executor::gpu::GpuDevicePtr;
+using ::stream_executor::gpu::GpuStatus;
+
+#define GPU_SUCCESS CUDA_SUCCESS
+#define GPU_MEMCPYDTOH_API cuMemcpyDtoH
+
+static void printErrorIfAny(GpuStatus result, const char* where) {
+  if (result != GPU_SUCCESS) {
+    std::ostringstream out;
+    LOG(ERROR) << "CUDA failed with " << result << " in " << where;
+  }
+}
+
+static int32_t reportErrorIfAny(GpuStatus result, const char* where) {
+  printErrorIfAny(result, where);
+  return result;
+}
 #endif
 
 DiscInterpreter::DiscInterpreter() {
@@ -48,6 +66,18 @@ tensorflow::Status BindInputs(const std::vector<tensorflow::Tensor>& tensors,
                               tao::ral::ExecutionContext& exec_ctx) {
   for (size_t i = 0; i < tensors.size(); ++i) {
     auto t = tensors[i];
+    // for debug
+    if (i == 120) {
+      std::cout << "%arg120 shape: [";
+      for (int r = 0; r < t.dims(); ++r) {
+        std::cout << t.dim_size(r) << ", ";
+      }
+      std::cout << "]: ";
+      for (int n = 0; n < t.NumElements(); ++n) {
+        std::cout << reinterpret_cast<float*>(t.data())[n] << ", ";
+      }
+      std::cout << std::endl;
+    }
     std::vector<int64_t> shape;
     for (size_t dim_i = 0; dim_i < t.dims(); ++dim_i) {
       shape.push_back(t.dim_size(dim_i));
@@ -79,10 +109,65 @@ tensorflow::Status BindInputs(const std::vector<tensorflow::Tensor>& tensors,
   return tensorflow::Status::OK();
 }
 
+tensorflow::Status BindOutputsAndDump(const std::vector<std::string> placements,
+                                      tao::ral::ExecutionContext& exec_ctx) {
+  size_t num_outputs = placements.size();
+  for (size_t idx = 0; idx < num_outputs; ++idx) {
+    std::unique_ptr<tao::ral::OutputBufferWrapper> output_buffer;
+    output_buffer.reset();
+    exec_ctx.bindOutput(idx, &output_buffer);
+    void* result = (void*)output_buffer->data();
+    auto& output_shape = output_buffer->shape();
+    int64_t nelem = 1;
+    for (size_t i = 0; i < output_shape.size(); ++i) {
+      nelem *= output_shape[i];
+    }
+    // if (out_elem_types_[idx] == tensorflow::DT_FLOAT) {
+    // TODO: only support float output for now
+    if (true) {
+      if (placements[idx] == "cpu") {
+        std::cout << "  result #" << idx << ": shape: [";
+        for (int i = 0; i < output_shape.size(); ++i) {
+          std::cout << output_shape[i] << ", ";
+        }
+        std::cout << "] ";
+        for (int i = 0; i < nelem && i < 5; ++i) {
+          std::cout << reinterpret_cast<float*>(result)[i] << ", ";
+        }
+        std::cout << std::endl;
+      } else if (placements[idx] == "gpu") {
+        int64_t bytes = nelem * sizeof(float);
+        float* h_result = nullptr;
+        if (nelem) {
+          h_result = new float[nelem];
+          reportErrorIfAny(
+              GPU_MEMCPYDTOH_API((void*)h_result,
+                                 reinterpret_cast<GpuDevicePtr>(result), bytes),
+              "gpu MemcpyDtoH");
+        }
+        std::cout << "  result #" << idx << ": shape: [";
+        for (int i = 0; i < output_shape.size(); ++i) {
+          std::cout << output_shape[i] << ", ";
+        }
+        std::cout << "] ";
+        for (int i = 0; i < nelem && (i < 5 || true); ++i) {
+          std::cout << h_result[i] << ", ";
+        }
+        std::cout << std::endl;
+      } else {
+        std::cout << "unexpected output placement: " << placements[idx]
+                  << std::endl;
+      }
+    }
+  }
+  return tensorflow::Status::OK();
+}
+
 tensorflow::Status DiscInterpreter::Run(
     const CompiledResult& result,
     const std::vector<tensorflow::Tensor>& tensors,
-    const std::vector<std::string>& placements) {
+    const std::vector<std::string>& input_placements,
+    const std::vector<std::string>& output_placements) {
 #if GOOGLE_CUDA
   auto exec_ctx =
       tao::ral::MakeExecutionContext<tao::ral::gpu::BaseCudaExecutionContext>(
@@ -92,9 +177,11 @@ tensorflow::Status DiscInterpreter::Run(
       tao::ral::MakeExecutionContext<tao::ral::cpu::BaseCpuExecutionContext>(
           context_.get());
 #endif
-  TF_RETURN_IF_ERROR(BindInputs(tensors, placements, *exec_ctx.get()));
+  TF_RETURN_IF_ERROR(BindInputs(tensors, input_placements, *exec_ctx.get()));
   void* ctx_struct[] = {exec_ctx.get(), ral_func_ptr_};
   result.entry_func(ctx_struct);
+  // TODO: support correctness check
+  TF_RETURN_IF_ERROR(BindOutputsAndDump(output_placements, *exec_ctx.get()));
   return tensorflow::Status::OK();
 }
 

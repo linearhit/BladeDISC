@@ -33,14 +33,16 @@ class ReplayRecord {
 
   tensorflow::tao::TaoCompilerInput& Program() { return program_; };
   std::vector<tensorflow::Tensor> Tensors() { return tensors_; };
-  std::vector<std::string> Placements() { return placements_; };
+  std::vector<std::string> InputPlacements() { return input_placements_; };
+  std::vector<std::string> OutputPlacements() { return output_placements_; };
 
  private:
   std::string program_fname_;
   std::string tar_fname_;
   tensorflow::tao::TaoCompilerInput program_;
   std::vector<tensorflow::Tensor> tensors_;
-  std::vector<std::string> placements_;
+  std::vector<std::string> input_placements_;
+  std::vector<std::string> output_placements_;
 };
 
 inline std::shared_ptr<ReplayRecord> CreateReplayRecord(

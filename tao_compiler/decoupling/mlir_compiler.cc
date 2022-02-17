@@ -33,12 +33,56 @@
 #include "tensorflow/core/framework/function.h"
 #include "tensorflow/core/public/version.h"
 
+// for debug
+#include "llvm/Support/SourceMgr.h"
+#include "mlir-hlo/Dialect/disc-ral/IR/disc_ral_ops.h"
+#include "mlir-hlo/Dialect/disc-ral/transforms/register_passes.h"
+#include "mlir-hlo/Dialect/lhlo/IR/lhlo_ops.h"
+#include "mlir-hlo/Dialect/lhlo/transforms/register_passes.h"
+#include "mlir-hlo/Dialect/lhlo_gpu/IR/lhlo_gpu_ops.h"
+#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
+#include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
+#include "mlir-hlo/Dialect/mhlo/transforms/register_passes.h"
+#include "mlir/ExecutionEngine/OptUtils.h"  // from @llvm-project
+#include "mlir/IR/AsmState.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/InitAllDialects.h"
+#include "mlir/InitAllPasses.h"
+#include "mlir/Parser.h"                 // from @llvm-project
+#include "mlir/Pass/PassManager.h"       // from @llvm-project
+#include "mlir/Support/FileUtilities.h"  // from @llvm-project
+#include "mlir/Support/MlirOptMain.h"
+#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"  // from @llvm-project
+#include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"  // from @llvm-project
+#include "mlir/Target/LLVMIR/Export.h"  // from @llvm-project
+#include "tensorflow/compiler/mlir/disc/IR/hlo_disc_ops.h"
+#include "tensorflow/compiler/mlir/disc/IR/lhlo_disc_ops.h"
+#include "tensorflow/compiler/mlir/disc/disc_compiler.h"
+#include "tensorflow/compiler/mlir/disc/transforms/register_passes.h"
+#include "tensorflow/compiler/mlir/tensorflow/dialect_registration.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes.h"
+
 namespace tensorflow {
 namespace tao {
 
 using llvm::SmallVector;
 using mlir::DenseElementsAttr;
 using mlir::RankedTensorType;
+
+static mlir::OwningModuleRef parseMLIRInput(llvm::StringRef inputFilename,
+                                            mlir::MLIRContext* context) {
+  // Set up the input file.
+  std::string errorMessage;
+  auto file = mlir::openInputFile(inputFilename, &errorMessage);
+  if (!file) {
+    llvm::errs() << errorMessage << "\n";
+    return nullptr;
+  }
+
+  llvm::SourceMgr sourceMgr;
+  sourceMgr.AddNewSourceBuffer(std::move(file), llvm::SMLoc());
+  return mlir::OwningModuleRef(parseSourceFile(sourceMgr, context));
+}
 
 StatusOr<std::vector<TensorShape>> ParseArgShapes(
     const TaoCompilerInput& input) {
@@ -389,6 +433,14 @@ Status CompilerMLIR::ConvertToMlir(const TaoCompilerInput& input,
   }
 
   module_ = std::move(module);
+
+  // load revised ir for debug purpose
+  // module_ = parseMLIRInput("/home/tashuang.zk/data/xiaohongshu_bug/hlo.mlir",
+  // context_.get()); if (!module_) {
+  //   llvm::errs() << "could not parse the input file\n";
+  //   return errors::Internal("could not parse the input file");
+  // }
+
   return Status::OK();
 }
 

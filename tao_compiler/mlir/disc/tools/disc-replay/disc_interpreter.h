@@ -62,7 +62,8 @@ class DiscInterpreter {
   // Run the executable program with input data
   tensorflow::Status Run(const CompiledResult& result,
                          const std::vector<tensorflow::Tensor>& tensors,
-                         const std::vector<std::string>& placements);
+                         const std::vector<std::string>& input_placements,
+                         const std::vector<std::string>& output_placements);
 
  private:
   void InitExecCUDAContext(const std::string& executable_fname);
