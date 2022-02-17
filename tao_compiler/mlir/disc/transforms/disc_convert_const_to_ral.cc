@@ -44,7 +44,8 @@ constexpr static int kMd5DigestLength = 16;
 void ExtractConstValue(const DenseElementsAttr& valueAttr, MemRefType memref,
                        StrT& data) {
   ArrayRef<char> rawData = valueAttr.getRawData();
-  if (valueAttr.isSplat()) {
+  // if (valueAttr.isSplat()) {
+  if (false) {
     size_t num_elements = memref.getNumElements();
     data.reserve(num_elements * memref.getElementTypeBitWidth());
     std::string splatStr =

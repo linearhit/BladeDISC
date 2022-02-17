@@ -75,7 +75,9 @@ static inline buffer_t ral_base_cuda_const_cuda_internal(
     TAO_VLOG(2) << "unique_name: " << key;
     auto it = state->device_constants.find(key);
     if (it == state->device_constants.end()) {
-      buffer_shape_t dim_sizes = GetShapeFromConstUniqueName(ctx, unique_name);
+      int64_t width_in_bytes = 0;
+      buffer_shape_t dim_sizes =
+          GetShapeFromConstUniqueName(ctx, unique_name, &width_in_bytes);
       // alloc, get value from metadata file, and then memcpy
       const auto& constants = state->metadata_proto.device_global_constants();
       if (constants.find(key) == constants.end()) {
@@ -87,6 +89,19 @@ static inline buffer_t ral_base_cuda_const_cuda_internal(
       TAO_VLOG(2) << "fromHex start:";
       auto data = fromHex(hex_str);
       auto bytes = data.size();
+      int64_t num_elements = std::accumulate(dim_sizes.begin(), dim_sizes.end(),
+                                             1, std::multiplies<int64_t>());
+      TAO_VLOG(2) << "width_in_bytes: " << width_in_bytes;
+      TAO_VLOG(2) << "num_elements: " << num_elements;
+      TAO_VLOG(2) << "bytes: " << bytes;
+      if (bytes < num_elements * width_in_bytes) {
+        // isSplat
+        bytes = num_elements * width_in_bytes;
+        auto splat_data = data;
+        for (int64_t i = 0; i < num_elements - 1; ++i) {
+          std::copy(data.begin(), data.end(), std::back_inserter(splat_data));
+        }
+      }
       TAO_VLOG(2) << "data.size: " << bytes;
       auto gpu_driver = ctx->getDriver<GPUDriver>(GPUDriver::name());
 
