@@ -88,13 +88,28 @@ bool miscFuseHelper<ConstOp>(PatternRewriter& rewriter, Operation* user,
          "only scalar ConstOp can be fused");
   auto loc = user->getLoc();
   rewriter.setInsertionPoint(load_op);
-  Value inlined_result = is_splat
-                             ? rewriter.create<arith::ConstantOp>(
-                                   loc, memref_type.getElementType(),
-                                   constant.value().getSplatValue<Attribute>())
-                             : rewriter.create<arith::ConstantOp>(
-                                   loc, memref_type.getElementType(),
-                                   constant.value().getValues<Attribute>()[{}]);
+  auto elem_ty = memref_type.getElementType();
+  bool need_cast = elem_ty.isUnsignedInteger() || elem_ty.isSignedInteger();
+  Value inlined_result = nullptr;
+  if (need_cast) {
+    int64_t val = is_splat
+                      ? constant.value().getSplatValue<APInt>().getSExtValue()
+                      : constant.value().getValues<APInt>()[{}].getSExtValue();
+    Value const_val = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(val));
+    SmallVector<Type> elem_types(1, elem_ty);
+    inlined_result =
+        rewriter.create<UnrealizedConversionCastOp>(loc, elem_types, const_val)
+            .getResults()
+            .front();
+  } else {
+    inlined_result =
+        is_splat
+            ? rewriter.create<arith::ConstantOp>(
+                  loc, elem_ty, constant.value().getSplatValue<Attribute>())
+            : rewriter.create<arith::ConstantOp>(
+                  loc, elem_ty, constant.value().getValues<Attribute>()[{}]);
+  }
   for (memref::LoadOp to_be_replaced : load_ops)
     to_be_replaced.replaceAllUsesWith(inlined_result);
   return true;
