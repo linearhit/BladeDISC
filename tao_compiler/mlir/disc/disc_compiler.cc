@@ -218,8 +218,7 @@ LogicalResult LowerHLOToLLVM(ModuleOp m, const DISCLoweringOptions& options) {
   pm.addNestedPass<FuncOp>(disc_ral::createDiscSplitLargeOpsPass());
   pm.addNestedPass<FuncOp>(disc_ral::createDiscDotRewriterPass());
   pm.addNestedPass<FuncOp>(mhlo::createLegalizeEinsumToDotGeneralPass());
-  pm.addNestedPass<FuncOp>(
-      disc_ral::createLayoutLegalizationToDotGeneralPass());
+  pm.addNestedPass<FuncOp>(disc_ral::createDotGeneralLayoutRewritePass());
 
   if (gpu_enabled) {
     pm.addNestedPass<FuncOp>(mhlo::createHloCanonicalizeReductionPass());

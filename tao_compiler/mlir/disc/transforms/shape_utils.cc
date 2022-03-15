@@ -897,6 +897,67 @@ LogicalResult ShapeAnalysis::applyMhloOpConstraint(Operation* op) {
       mapDimEqual(mn_values[i].first, mn_values[i].second, result,
                   i + lhs_batching_dims.size());
     }
+  } else if (auto einsum = dyn_cast<mhlo::EinsumOp>(op)) {
+    StringRef equation = einsum.einsum_config();
+    // SmallVector<char> lhs_tokens, rhs_tokens;
+    // SmallVector<char> result_tokens;
+    enum EquationVariable { kIsLhs, kIsRhs, kIsResult };
+    llvm::SmallDenseMap<char, llvm::SmallDenseMap<EquationVariable, size_t>>
+        all_tokens;
+    size_t index = 0;
+    size_t sub_index = 0;
+    EquationVariable current_variable = kIsLhs;
+    while (index < equation.size()) {
+      if (std::isalpha(equation[index])) {
+        if (current_variable == kIsLhs) {
+          all_tokens[equation[index]][kIsLhs] = sub_index;
+          sub_index++;
+        } else if (current_variable == kIsRhs) {
+          all_tokens[equation[index]][kIsRhs] = sub_index;
+          sub_index++;
+        } else {
+          all_tokens[equation[index]][kIsResult] = sub_index;
+          sub_index++;
+        }
+      } else if (equation.substr(index, 1).contains(",")) {
+        current_variable = kIsRhs;
+        sub_index = 0;
+      } else if ((index < (equation.size() - 1)) &&
+                 (equation.substr(index, 2).contains("->"))) {
+        current_variable = kIsResult;
+        sub_index = 0;
+        index++;
+      } else {
+        return einsum.emitError("unexpected character ")
+               << equation.substr(index, 1) << " encountered";
+      }
+      index++;
+    }
+    for (auto token : all_tokens) {
+      llvm::dbgs() << token.first << ": ";
+      SmallVector<std::pair<Value, int64_t>> equalValues;
+      for (auto item : token.second) {
+        llvm::dbgs() << item.first << "," << item.second << " ";
+        if (item.first == kIsLhs) {
+          equalValues.push_back(std::make_pair(einsum.lhs(), item.second));
+        } else if (item.first == kIsRhs) {
+          equalValues.push_back(std::make_pair(einsum.rhs(), item.second));
+        } else {
+          // kIsResult
+          equalValues.push_back(
+              std::make_pair(einsum.getResult(), item.second));
+        }
+      }
+      llvm::dbgs() << "\n";
+      if (equalValues.size() >= 2) {
+        mapDimEqual(equalValues[0].first, equalValues[0].second,
+                    equalValues[1].first, equalValues[1].second);
+      }
+      if (equalValues.size() == 3) {
+        mapDimEqual(equalValues[0].first, equalValues[0].second,
+                    equalValues[2].first, equalValues[2].second);
+      }
+    }
   } else if (auto clamp = dyn_cast<mhlo::ClampOp>(op)) {
     int64_t min_rank = clamp.min().getType().cast<RankedTensorType>().getRank();
     int64_t max_rank = clamp.max().getType().cast<RankedTensorType>().getRank();
