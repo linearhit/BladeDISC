@@ -84,6 +84,11 @@ T CastJitConstToNumeric(const torch::jit::Value& val) {
       LOG(WARNING) << "A bool constant was cast to type:" << typeid(T).name();
     }
     return const_ival->toBool();
+  } else if (const_ival->isString()) {
+    if (!std::is_same<T, std::string>::value) {
+      LOG(WARNING) << "A string constant was cast to type:" << typeid(T).name();
+    }
+    return const_ival->toString()->string();
   }
 
   TORCH_CHECK(
@@ -104,6 +109,10 @@ double CastJitConstToDouble(const torch::jit::Value& val) {
 
 bool CastJitConstToBool(const torch::jit::Value& val) {
   return CastJitConstToNumeric<bool>(val);
+}
+
+bool CastJitConstToString(const torch::jit::Value& val) {
+  return CastJitConstToNumeric<std::string>(val);
 }
 
 mlir::Value BuildMlirConstFromTorchTensor(

@@ -154,6 +154,38 @@ bool ConvertAtenLinear(
   return true;
 }
 
+bool ConvertAtenEinsum(
+    MhloConversionContext& ctx,
+    const torch::jit::Node& node) {
+  auto loc = GetNodeLocation(ctx, node);
+  auto equation = node.input(0);
+  auto jit_input_list = node.input(1);
+  bool is_const_equation = IsPrimConstant(*equation);
+  if (!is_const_dims) {
+    LOG(WARNING) << "chunks and dim must be constant for aten::chunk";
+    return false;
+  }
+  if (ctx.list_map.find(jit_input_list) == ctx.list_map.end()) {
+    return false;
+  }
+  std::string equation = CastJitConstToString(*equation);
+  auto input_list_vals = ctx.GetMlirValueList(jit_input_list);
+  if (input_list_vals.size() > 2) {
+    // TODO: aten::einsum with more than 2 inputs are not supported yet.
+    return false;
+  }
+  auto builder = *ctx.builder;
+  auto result_ty = BuildMlirRankedTensorType(builder, *node.output(0));
+  auto result = builder.create<mlir::mhlo::EinsumOp>(
+      loc,
+      result_ty,
+      input_list_vals[0],
+      input_list_vals[1],
+      mlir::StringAttr::get(builder.getContext(), equation));
+  ctx.value_map[node.output(0)] = result;
+  return true;
+}
+
 namespace {
 // >>> # vector x vector
 // >>> tensor1 = torch.randn(3)
@@ -198,7 +230,10 @@ auto mhlo_conversion =
             ConvertAtenAddmm)
         .pattern(
             "aten::linear(Tensor input, Tensor weight, Tensor? bias) -> Tensor",
-            ConvertAtenLinear);
+            ConvertAtenLinear)
+        .pattern(
+            "aten::einsum(str equation, Tensor[] tensors) -> Tensor",
+            ConvertAtenEinsum);
 } // namespace
 } // namespace blade
 } // namespace torch

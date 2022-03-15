@@ -363,6 +363,75 @@ bool ConvertAtenUnbind(
   return true;
 }
 
+// TODO: fully support the semantics of aten::chunk when the dim size
+// is not divisible by chunks
+bool ConvertAtenChunk(
+    MhloConversionContext& ctx,
+    const torch::jit::Node& node) {
+  auto loc = GetNodeLocation(ctx, node);
+  auto jit_input = node.input(0);
+  auto jit_chunks = node.input(1);
+  auto jit_dim = node.input(2);
+  bool is_const_dims = IsPrimConstant(*jit_chunks) && IsPrimConstant(*jit_dim);
+  if (!is_const_dims) {
+    LOG(WARNING) << "chunks and dim must be constant for aten::chunk";
+    return false;
+  }
+
+  auto& builder = *ctx.builder;
+  auto ml_input = ctx.GetMlirValue(jit_input);
+  mlir_dim_t rank = GetRankOfMlirValue(ml_input);
+  mlir_dim_t trans_chunks = CastJitConstToInt64(*jit_chunks);
+  mlir_dim_t trans_dim = CastJitConstToInt64(*jit_dim);
+  trans_dim = NormalizeDimIndex(trans_dim, rank);
+  auto dim_size = BuildStdDimSizeOfTensor(builder, loc, ml_input, trans_dim);
+  auto chunks = BuildStdConstForI64(builder, loc, trans_chunks);
+  auto chunked_size =
+      builder.create<mlir::arith::DivUIOp>(loc, dim_size, chunks);
+  auto step_val = BuildStdConstForI64(builder, loc, 1);
+  mlir::Value last_end_val = BuildStdConstForI64(builder, loc, 0);
+  for (mlir_dim_t i = 0; i < trans_chunks; ++i) {
+    mlir::Value end_val = builder.create<mlir::arith::DivUIOp>(
+        loc, BuildStdConstForI64(builder, loc, i + 1), chunked_size);
+    ctx.value_map[node.output(i)] = BuildDynamicSliceInternal(
+        builder, loc, ml_input, last_end_val, end_val, step_val, trans_dim);
+    last_end_val = end_val;
+  }
+  return true;
+}
+
+bool ConvertAtenEinsum(
+    MhloConversionContext& ctx,
+    const torch::jit::Node& node) {
+  auto loc = GetNodeLocation(ctx, node);
+  auto equation = node.input(0);
+  auto jit_input_list = node.input(1);
+  bool is_const_equation = IsPrimConstant(*equation);
+  if (!is_const_dims) {
+    LOG(WARNING) << "chunks and dim must be constant for aten::chunk";
+    return false;
+  }
+  if (ctx.list_map.find(jit_input_list) == ctx.list_map.end()) {
+    return false;
+  }
+  std::string equation = CastJitConstToString(*equation);
+  auto input_list_vals = ctx.GetMlirValueList(jit_input_list);
+  if (input_list_vals.size() > 2) {
+    // TODO: aten::einsum with more than 2 inputs are not supported yet.
+    return false;
+  }
+  auto builder = *ctx.builder;
+  auto result_ty = BuildMlirRankedTensorType(builder, *node.output(0));
+  auto result = builder.create<mlir::mhlo::EinsumOp>(
+      loc,
+      result_ty,
+      input_list_vals[0],
+      input_list_vals[1],
+      mlir::StringAttr::get(builder.getContext(), equation));
+  ctx.value_map[node.output(0)] = result;
+  return true;
+}
+
 namespace {
 auto mhlo_conversion =
     MhloConversionPatternRegister()
@@ -405,7 +474,13 @@ auto mhlo_conversion =
             ConvertAtenUnbind)
         .pattern(
             "aten::roll(Tensor self, int[1] shifts, int[1] dims=[]) -> (Tensor)",
-            ConvertAtenRoll);
+            ConvertAtenRoll)
+        .pattern(
+            "aten::chunk(Tensor self, int chunks, int dim=0) -> (Tensor[])",
+            ConvertAtenChunk)
+        .pattern(
+            "aten::einsum(str equation, Tensor[] tensors) -> Tensor",
+            ConvertAtenEinsum);
 } // namespace
 } // namespace blade
 } // namespace torch
