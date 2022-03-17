@@ -28,6 +28,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "tensorflow/compiler/mlir/disc/IR/disc_shape_ops.h"
 #include "tensorflow/compiler/mlir/disc/IR/hlo_disc_ops.h"
+#include "tensorflow/compiler/mlir/disc/disc_util.h"
 
 namespace mlir {
 namespace disc_ral {
@@ -901,9 +902,7 @@ LogicalResult ShapeAnalysis::applyMhloOpConstraint(Operation* op) {
     StringRef equation = einsum.einsum_config();
     // SmallVector<char> lhs_tokens, rhs_tokens;
     // SmallVector<char> result_tokens;
-    enum EquationVariable { kIsLhs, kIsRhs, kIsResult };
-    llvm::SmallDenseMap<char, llvm::SmallDenseMap<EquationVariable, size_t>>
-        all_tokens;
+    llvm::DenseMap<char, llvm::DenseMap<EquationVariable, size_t>> all_tokens;
     size_t index = 0;
     size_t sub_index = 0;
     EquationVariable current_variable = kIsLhs;

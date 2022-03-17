@@ -84,19 +84,25 @@ T CastJitConstToNumeric(const torch::jit::Value& val) {
       LOG(WARNING) << "A bool constant was cast to type:" << typeid(T).name();
     }
     return const_ival->toBool();
-  } else if (const_ival->isString()) {
-    if (!std::is_same<T, std::string>::value) {
-      LOG(WARNING) << "A string constant was cast to type:" << typeid(T).name();
-    }
-    return const_ival->toString()->string();
   }
-
   TORCH_CHECK(
       false,
       "The torch::jit::Value %",
       val.debugName(),
       " can't be cast to type:",
       typeid(T).name());
+}
+
+std::string CastJitConstToString(const torch::jit::Value& val) {
+  TORCH_CHECK(
+      IsPrimConstant(val),
+      "The torch::jit::Value %",
+      val.debugName(),
+      " producer node must be prim::Constant");
+  auto const_ival = torch::jit::toIValue(&val);
+  TORCH_CHECK(
+      const_ival, "The torch::jit::Value %", val.debugName(), " is empty");
+  return const_ival->toString()->string();
 }
 
 int64_t CastJitConstToInt64(const torch::jit::Value& val) {
@@ -109,10 +115,6 @@ double CastJitConstToDouble(const torch::jit::Value& val) {
 
 bool CastJitConstToBool(const torch::jit::Value& val) {
   return CastJitConstToNumeric<bool>(val);
-}
-
-bool CastJitConstToString(const torch::jit::Value& val) {
-  return CastJitConstToNumeric<std::string>(val);
 }
 
 mlir::Value BuildMlirConstFromTorchTensor(

@@ -333,10 +333,10 @@ def build_mlir_ral(root, args):
         execute(" ".join([BAZEL_BUILD_CMD, flag, target]))
 
     flag = ""
-    with cwd(tf_root_dir(root)), gcc_env(args.bridge_gcc):
-        bazel_build(TARGET_RAL_STANDALONE_LIB, flag=flag)
-        bazel_build(TARGET_MLIR_DISC_BUILDER, flag=flag)
-        bazel_build(TARGET_MLIR_DISC_BUILDER_HEADER, flag=flag)
+    #with cwd(tf_root_dir(root)), gcc_env(args.bridge_gcc):
+    #    bazel_build(TARGET_RAL_STANDALONE_LIB, flag=flag)
+    #    bazel_build(TARGET_MLIR_DISC_BUILDER, flag=flag)
+    #    bazel_build(TARGET_MLIR_DISC_BUILDER_HEADER, flag=flag)
 
     with cwd(tf_root_dir(root)), gcc_env(args.compiler_gcc):
         if not args.cpu_only:

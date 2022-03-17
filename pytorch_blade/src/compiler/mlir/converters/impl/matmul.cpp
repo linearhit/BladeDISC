@@ -16,7 +16,9 @@
 #include <mlir/mhlo/builder/mlir_shape_builder.h>
 #include <mlir/mhlo/builder/mlir_utils.h>
 
+#include "compiler/mlir/converters/impl/prim_constant.h"
 #include "compiler/mlir/converters/mhlo_converter_register.h"
+#include "compiler/mlir/converters/mlir_type_utils.h"
 
 #include <torch/script.h>
 
@@ -158,29 +160,40 @@ bool ConvertAtenEinsum(
     MhloConversionContext& ctx,
     const torch::jit::Node& node) {
   auto loc = GetNodeLocation(ctx, node);
-  auto equation = node.input(0);
+  auto jit_equation = node.input(0);
   auto jit_input_list = node.input(1);
-  bool is_const_equation = IsPrimConstant(*equation);
-  if (!is_const_dims) {
-    LOG(WARNING) << "chunks and dim must be constant for aten::chunk";
+  bool is_const_equation = IsPrimConstant(*jit_equation);
+  if (!is_const_equation) {
+    LOG(WARNING) << "equation must be constant for aten::einsum";
     return false;
   }
   if (ctx.list_map.find(jit_input_list) == ctx.list_map.end()) {
     return false;
   }
-  std::string equation = CastJitConstToString(*equation);
+  std::string equation = CastJitConstToString(*jit_equation);
   auto input_list_vals = ctx.GetMlirValueList(jit_input_list);
   if (input_list_vals.size() > 2) {
     // TODO: aten::einsum with more than 2 inputs are not supported yet.
     return false;
   }
   auto builder = *ctx.builder;
+  mlir::Value lhs = input_list_vals[0];
+  mlir::Value rhs = input_list_vals[1];
+  auto lhs_ty = lhs.getType().cast<mlir::RankedTensorType>();
+  auto rhs_ty = rhs.getType().cast<mlir::RankedTensorType>();
   auto result_ty = BuildMlirRankedTensorType(builder, *node.output(0));
+  auto result_elem_ty = result_ty.getElementType();
+  if (lhs_ty.getElementType() != result_elem_ty) {
+    lhs = builder.create<mlir::mhlo::ConvertOp>(loc, lhs, result_elem_ty);
+  }
+  if (rhs_ty.getElementType() != result_elem_ty) {
+    rhs = builder.create<mlir::mhlo::ConvertOp>(loc, rhs, result_elem_ty);
+  }
   auto result = builder.create<mlir::mhlo::EinsumOp>(
       loc,
       result_ty,
-      input_list_vals[0],
-      input_list_vals[1],
+      lhs,
+      rhs,
       mlir::StringAttr::get(builder.getContext(), equation));
   ctx.value_map[node.output(0)] = result;
   return true;
