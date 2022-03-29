@@ -16,6 +16,8 @@
 #include "compiler/mlir/converters/impl/utils.h"
 #include "compiler/mlir/converters/mhlo_converter_register.h"
 #include "compiler/mlir/converters/mlir_type_utils.h"
+#include "mlir/mhlo/builder/mlir_shape_builder.h"
+#include "mlir/mhlo/builder/mlir_utils.h"
 
 #include <torch/script.h>
 
@@ -57,8 +59,31 @@ bool ConvertAtenSoftmax(
 
   auto ml_input = *optional_input_casted;
 
-  ctx.value_map[node.output(0)] =
-      BuildSoftmax(builder, loc, ml_input, reduce_dim, is_logsoftmax);
+  // reformat the reduce dim into the last dim for performance
+  mlir_dim_t rank = GetRankOfMlirValue(ml_input);
+  reduce_dim = NormalizeDimIndex(reduce_dim, rank);
+  mlir::Value softmax_input = ml_input;
+  bool need_transpose = (reduce_dim != rank - 1);
+  mlir::Value result;
+  if (need_transpose) {
+    SmallVec4<mlir_dim_t> permutation;
+    SmallVec4<mlir_dim_t> rev_permutation(rank, -1);
+    for (mlir_dim_t i = 0; i < rank; ++i) {
+      if (i != reduce_dim) {
+        permutation.push_back(i);
+        rev_permutation[i] = permutation.size() - 1;
+      }
+    }
+    permutation.push_back(reduce_dim);
+    rev_permutation[reduce_dim] = rank - 1;
+    softmax_input = BuildPermute(builder, loc, softmax_input, permutation);
+    result = BuildSoftmax(builder, loc, softmax_input, rank - 1, is_logsoftmax);
+    result = BuildPermute(builder, loc, result, rev_permutation);
+  } else {
+    result =
+        BuildSoftmax(builder, loc, softmax_input, reduce_dim, is_logsoftmax);
+  }
+  ctx.value_map[node.output(0)] = result;
   return true;
 }
 

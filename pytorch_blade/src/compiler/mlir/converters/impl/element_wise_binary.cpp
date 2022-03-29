@@ -189,18 +189,18 @@ bool ConvertAtenArange(
   const auto& loc = GetNodeLocation(ctx, node);
   auto end = ctx.GetMlirValue(node.input(0));
   auto dtype_value = torch::jit::toIValue(node.input(1));
+  mlir::Type elem_type;
   if (!dtype_value || dtype_value->isNone()) {
-    return false;
-  }
-  // ScalarType in jit::Graph is type of int
-  torch::ScalarType dtype =
-      static_cast<torch::ScalarType>(dtype_value->toInt());
-  if (dtype != torch::ScalarType::Long) {
-    return false;
-  }
-  auto elem_type = BuildMlirElemType(*ctx.builder, dtype);
-  if (elem_type != end.getType()) {
-    return false;
+    auto result_ty = BuildMlirRankedTensorType(*ctx.builder, *node.output(0));
+    elem_type = result_ty.getElementType();
+  } else {
+    // ScalarType in jit::Graph is type of int
+    torch::ScalarType dtype =
+        static_cast<torch::ScalarType>(dtype_value->toInt());
+    // if (dtype != torch::ScalarType::Long) {
+    //  return false;
+    //}
+    elem_type = BuildMlirElemType(*ctx.builder, dtype);
   }
 
   std::vector<mlir::Value> dim_sizes = {end};
